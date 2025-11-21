@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -17,6 +18,8 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
+import android.view.View
+import android.view.WindowInsetsController
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -75,6 +78,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // تنظیم Status Bar و Navigation Bar به سفید
+        setupSystemBars()
 
         registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
 
@@ -382,6 +388,41 @@ class MainActivity : Activity() {
                     toast("Permission denied")
                 }
             }
+        }
+    }
+
+    private fun setupSystemBars() {
+        val window = window
+        
+        // تنظیم Status Bar و Navigation Bar به سفید
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11 (API 30) و بالاتر
+            window.statusBarColor = Color.WHITE
+            window.navigationBarColor = Color.WHITE
+            
+            val controller = window.insetsController
+            controller?.let {
+                // نمایش Status Bar icons به صورت تیره (برای خوانایی روی پس‌زمینه سفید)
+                it.setSystemBarsAppearance(
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                )
+                // نمایش Navigation Bar icons به صورت تیره
+                it.setSystemBarsAppearance(
+                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                )
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            // Android 5.0 (API 21) تا Android 10 (API 29)
+            window.statusBarColor = Color.WHITE
+            window.navigationBarColor = Color.WHITE
+            
+            // برای Status Bar icons تیره
+            var flags = window.decorView.systemUiVisibility
+            flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            window.decorView.systemUiVisibility = flags
         }
     }
 
