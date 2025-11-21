@@ -1,0 +1,184 @@
+name: 🚀 Android CI/CD Build Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout main app
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: 🚀 Cache Gradle Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.android/build-cache
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: 🔑 Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: 🧹 Clean previous builds
+        run: ./gradlew clean
+
+      - name: 🏗️ Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: 🔐 Create keystore for signing
+        run: |
+          keytool -genkey -v \
+            -keystore app/release.keystore \
+            -alias mykey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+          
+          echo "✅ Keystore created!"
+
+      - name: 🏗️ Build Release APK (signed)
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/app/release.keystore \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=mykey \
+            -Pandroid.injected.signing.key.password=android \
+            --stacktrace
+
+      - name: 🔄 Rename APK files
+        run: |
+          APP_NAME="MyApp"
+          
+          BUILD_TIME=$(date +"%Y%m%d_%H%M%S")
+          BUILD_NUMBER=${{ github.run_number }}
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+          
+          mv app/build/outputs/apk/debug/app-debug.apk \
+             app/build/outputs/apk/debug/${APP_NAME}-debug-${BUILD_TIME}-build${BUILD_NUMBER}-${COMMIT_SHORT}.apk
+          
+          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -f "$RELEASE_APK" ]; then
+            RELEASE_DIR=$(dirname "$RELEASE_APK")
+            mv "$RELEASE_APK" \
+               "${RELEASE_DIR}/${APP_NAME}-release-${BUILD_TIME}-build${BUILD_NUMBER}-${COMMIT_SHORT}.apk"
+          fi
+          
+          echo "✅ Files renamed!"
+          ls -lh app/build/outputs/apk/debug/
+          ls -lh app/build/outputs/apk/release/
+
+      - name: 📦 Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-build-${{ github.run_number }}
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: 📦 Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-build-${{ github.run_number }}
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: 📤 Send Debug APK to Telegram
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          APK_NAME=$(basename "$APK_PATH")
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          BUILD_TIME=$(date +"%Y-%m-%d %H:%M:%S")
+          
+          curl -F document=@"$APK_PATH" \
+          -F caption="🤖 Build Success - Debug APK
+          
+          📦 File: ${APK_NAME}
+          🔢 Build #${{ github.run_number }}
+          📱 Branch: $BRANCH_NAME
+          👤 Committer: ${{ github.actor }}
+          💬 Commit: $COMMIT_MSG
+          ⏰ Time: $BUILD_TIME
+          🔗 Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument?chat_id=${TELEGRAM_CHAT_ID}
+
+      - name: 📤 Send Release APK to Telegram
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          APK_NAME=$(basename "$APK_PATH")
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          BUILD_TIME=$(date +"%Y-%m-%d %H:%M:%S")
+          
+          curl -F document=@"$APK_PATH" \
+          -F caption="🚀 Build Success - Release APK
+          
+          📦 File: ${APK_NAME}
+          🔢 Build #${{ github.run_number }}
+          📱 Branch: $BRANCH_NAME
+          👤 Committer: ${{ github.actor }}
+          💬 Commit: $COMMIT_MSG
+          ⏰ Time: $BUILD_TIME
+          🔗 Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument?chat_id=${TELEGRAM_CHAT_ID}
+
+      - name: ❌ Send error notification to Telegram
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "No commit message")
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          BUILD_TIME=$(date +"%Y-%m-%d %H:%M:%S")
+          
+          curl -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+          -d chat_id=${TELEGRAM_CHAT_ID} \
+          -d parse_mode=HTML \
+          -d text="❌ <b>Build Failed!</b>
+          
+          🔢 Build #${{ github.run_number }}
+          📱 Branch: $BRANCH_NAME
+          👤 Committer: ${{ github.actor }}
+          💬 Commit: $COMMIT_MSG
+          ⏰ Time: $BUILD_TIME
+          🔗 <a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View logs</a>"
+
+      - name: ✅ Build completed successfully!
+        if: success()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🎉 Build completed successfully!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Debug APK built successfully"
+          echo "✅ Release APK built successfully"
+          echo "📦 Files ready in Artifacts and Telegram"
+          echo "🔢 Build Number: ${{ github.run_number }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
