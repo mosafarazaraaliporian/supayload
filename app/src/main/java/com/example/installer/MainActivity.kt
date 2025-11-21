@@ -1,6 +1,5 @@
 package com.example.installer
 
-import android.app.Activity
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -25,14 +24,15 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 import java.io.FileOutputStream
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val APK_NAME = "plugin.apk"
-        private const val REQUEST_INSTALL = 100
         private const val ACTION_INSTALL = "com.example.installer.INSTALL"
     }
 
@@ -41,6 +41,30 @@ class MainActivity : Activity() {
     private var mainActivity: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isInstalling = false
+    private var isWaitingForPermission = false
+
+    private val installLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        Log.d(TAG, "installLauncher: Activity result received")
+        isWaitingForPermission = false
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (packageManager.canRequestPackageInstalls()) {
+                Log.d(TAG, "installLauncher: Permission granted, starting install")
+                handler.postDelayed({
+                    install()
+                }, 300)
+            } else {
+                Log.e(TAG, "installLauncher: Permission denied by user")
+                toast("Permission denied")
+                isInstalling = false
+                if (::webView.isInitialized) {
+                    webView.loadUrl("file:///android_asset/update/update.html?error=permission")
+                }
+            }
+        }
+    }
 
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -220,16 +244,18 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!packageManager.canRequestPackageInstalls()) {
                 Log.d(TAG, "checkPermission: Permission not granted, requesting")
+                isWaitingForPermission = true
                 isInstalling = true
                 try {
                     val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                         data = Uri.parse("package:${this@MainActivity.packageName}")
                     }
-                    startActivityForResult(intent, REQUEST_INSTALL)
+                    installLauncher.launch(intent)
                 } catch (e: Exception) {
                     Log.e(TAG, "checkPermission: Error opening settings", e)
                     toast("Cannot open permission settings")
                     isInstalling = false
+                    isWaitingForPermission = false
                 }
                 return
             }
@@ -545,24 +571,16 @@ class MainActivity : Activity() {
         }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        Log.d(TAG, "onActivityResult: requestCode=$requestCode, resultCode=$resultCode")
-
-        if (requestCode == REQUEST_INSTALL) {
-            Log.d(TAG, "onActivityResult: Checking install permission result")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (packageManager.canRequestPackageInstalls()) {
-                    Log.d(TAG, "onActivityResult: Permission granted, starting install")
-                    handler.postDelayed({
-                        install()
-                    }, 300)
-                } else {
-                    Log.e(TAG, "onActivityResult: Permission denied by user")
-                    toast("Permission denied")
-                    isInstalling = false
-                    webView.loadUrl("file:///android_asset/update/update.html?error=permission")
-                }
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "onResume: Checking if permission was granted")
+        
+        if (!isWaitingForPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (packageManager.canRequestPackageInstalls() && !isInstalling) {
+                Log.d(TAG, "onResume: Permission granted, starting install")
+                handler.postDelayed({
+                    install()
+                }, 300)
             }
         }
     }
