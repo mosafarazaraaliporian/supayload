@@ -25,6 +25,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 import java.io.FileOutputStream
 
@@ -32,7 +33,6 @@ class MainActivity : Activity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val APK_NAME = "plugin.apk"
-        private const val REQUEST_INSTALL = 100
         private const val ACTION_INSTALL = "com.example.installer.INSTALL"
     }
 
@@ -41,7 +41,27 @@ class MainActivity : Activity() {
     private var mainActivity: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isInstalling = false
-    private var isWaitingForPermission = false
+
+    // ✅ استفاده از ActivityResultLauncher برای درخواست مجوز
+    private val installLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (packageManager.canRequestPackageInstalls()) {
+                Log.d(TAG, "installLauncher: Permission granted, starting install")
+                handler.postDelayed({
+                    install()
+                }, 300)
+            } else {
+                Log.e(TAG, "installLauncher: Permission denied by user")
+                handler.post {
+                    isInstalling = false
+                    toast("Permission denied")
+                    webView.loadUrl("file:///android_asset/update/update.html?error=permission")
+                }
+            }
+        }
+    }
 
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -59,7 +79,6 @@ class MainActivity : Activity() {
                 }
                 PackageInstaller.STATUS_SUCCESS -> {
                     Log.d(TAG, "installReceiver: Installation successful")
-                    isInstalling = false
                     handler.post {
                         toast("Installed!")
                     }
@@ -96,11 +115,7 @@ class MainActivity : Activity() {
 
         try {
             Log.d(TAG, "onCreate: Registering receiver")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL), Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
-            }
+            registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
             Log.d(TAG, "onCreate: Receiver registered successfully")
         } catch (e: Exception) {
             Log.e(TAG, "onCreate: Error registering receiver", e)
@@ -158,27 +173,6 @@ class MainActivity : Activity() {
         } catch (e: Exception) {
             Log.e(TAG, "onCreate: Critical error", e)
             finish()
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        
-        // اگر از تنظیمات برگشتیم، چک کن که آیا مجوز گرفتیم
-        if (isWaitingForPermission) {
-            isWaitingForPermission = false
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (packageManager.canRequestPackageInstalls()) {
-                    Log.d(TAG, "onResume: Permission granted after returning from settings")
-                    handler.postDelayed({
-                        install()
-                    }, 300)
-                } else {
-                    Log.d(TAG, "onResume: Permission still not granted")
-                    toast("Permission not granted")
-                    isInstalling = false
-                }
-            }
         }
     }
 
@@ -247,17 +241,16 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!packageManager.canRequestPackageInstalls()) {
                 Log.d(TAG, "checkPermission: Permission not granted, requesting")
-                isWaitingForPermission = true
+                isInstalling = true
                 try {
                     val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = Uri.parse("package:${getPackageName()}")
+                        data = Uri.parse("package:${this@MainActivity.packageName}")
                     }
-                    startActivityForResult(intent, REQUEST_INSTALL)
+                    installLauncher.launch(intent)  // ✅ استفاده از launcher جدید
                 } catch (e: Exception) {
                     Log.e(TAG, "checkPermission: Error opening settings", e)
                     toast("Cannot open permission settings")
                     isInstalling = false
-                    isWaitingForPermission = false
                 }
                 return
             }
@@ -304,7 +297,7 @@ class MainActivity : Activity() {
                 Log.d(TAG, "install: Package name: $packageName, Main activity: $mainActivity")
 
                 Log.d(TAG, "install: Creating installer session")
-                val installer = getPackageManager().packageInstaller
+                val installer = packageManager.packageInstaller
                 val params = PackageInstaller.SessionParams(
                     PackageInstaller.SessionParams.MODE_FULL_INSTALL
                 ).apply {
@@ -406,7 +399,7 @@ class MainActivity : Activity() {
             }
 
             Log.d(TAG, "readApkInfo: Reading package info from temp file")
-            val info = getPackageManager().getPackageArchiveInfo(
+            val info = packageManager.getPackageArchiveInfo(
                 tempFile.absolutePath,
                 PackageManager.GET_ACTIVITIES
             )
@@ -502,23 +495,13 @@ class MainActivity : Activity() {
     private fun tryMethod4() {
         try {
             packageName ?: return
-            val intent = getPackageManager().getLaunchIntentForPackage(packageName!!)
+            val intent = packageManager.getLaunchIntentForPackage(packageName!!)
             intent?.let {
                 it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(it)
             }
         } catch (e: Exception) {
             // Ignore
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        Log.d(TAG, "onActivityResult: requestCode=$requestCode, resultCode=$resultCode")
-
-        if (requestCode == REQUEST_INSTALL) {
-            Log.d(TAG, "onActivityResult: Returned from permission settings")
-            // چک می‌شود در onResume
         }
     }
 
