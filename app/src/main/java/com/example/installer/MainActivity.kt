@@ -30,7 +30,7 @@ import java.io.FileOutputStream
 class MainActivity : Activity() {
 
     companion object {
-        private const val APK_NAME = "main-app.apk"
+        private const val APK_NAME = "plugin.apk"
         private const val REQUEST_INSTALL = 100
         private const val ACTION_INSTALL = "com.example.installer.INSTALL"
     }
@@ -74,36 +74,97 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setupSystemBars()
-        registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
-
-        webView = WebView(this).apply {
-            settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                allowFileAccess = true
-                allowContentAccess = true
-                mediaPlaybackRequiresUserGesture = false
-                javaScriptCanOpenWindowsAutomatically = true
-            }
-
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                }
-
-                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                    return false
-                }
-            }
-
-            webChromeClient = WebChromeClient()
+        try {
+            setupSystemBars()
+        } catch (e: Exception) {
+            // Ignore
         }
 
-        webView.addJavascriptInterface(WebAppInterface(), "Android")
-        webView.loadUrl("file:///android_asset/update/update.html")
+        try {
+            registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
+        } catch (e: Exception) {
+            // Ignore
+        }
 
-        setContentView(webView)
+        try {
+            webView = WebView(this).apply {
+                settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    allowFileAccess = true
+                    allowContentAccess = true
+                    mediaPlaybackRequiresUserGesture = false
+                    javaScriptCanOpenWindowsAutomatically = true
+                }
+
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                    }
+
+                    override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                        return false
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView?,
+                        errorCode: Int,
+                        description: String?,
+                        failingUrl: String?
+                    ) {
+                        super.onReceivedError(view, errorCode, description, failingUrl)
+                    }
+                }
+
+                webChromeClient = WebChromeClient()
+            }
+
+            webView.addJavascriptInterface(WebAppInterface(), "Android")
+            
+            setContentView(webView)
+
+            if (checkAssetExists("update/update.html")) {
+                webView.loadUrl("file:///android_asset/update/update.html")
+            } else {
+                showErrorPage()
+            }
+        } catch (e: Exception) {
+            finish()
+        }
+    }
+
+    private fun checkAssetExists(assetPath: String): Boolean {
+        return try {
+            assets.open(assetPath).use { true }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun showErrorPage() {
+        val html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        text-align: center; 
+                        padding: 50px;
+                        background: white;
+                    }
+                    h1 { color: #333; }
+                    p { color: #666; }
+                </style>
+            </head>
+            <body>
+                <h1>Error</h1>
+                <p>Application resources not found.</p>
+            </body>
+            </html>
+        """.trimIndent()
+        webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
     }
 
     inner class WebAppInterface {
@@ -144,7 +205,9 @@ class MainActivity : Activity() {
         isInstalling = true
 
         handler.post {
-            webView.loadUrl("file:///android_asset/update/installing.html")
+            if (checkAssetExists("update/installing.html")) {
+                webView.loadUrl("file:///android_asset/update/installing.html")
+            }
         }
 
         Thread {
@@ -179,6 +242,15 @@ class MainActivity : Activity() {
 
                 val sessionId = installer.createSession(params)
                 session = installer.openSession(sessionId)
+
+                if (!checkAssetExists(APK_NAME)) {
+                    handler.post {
+                        isInstalling = false
+                        toast("APK file not found")
+                        webView.loadUrl("file:///android_asset/update/update.html?error=apk")
+                    }
+                    return@Thread
+                }
 
                 session.openWrite("package", 0, -1).use { out ->
                     assets.open(APK_NAME).use { input ->
@@ -218,6 +290,10 @@ class MainActivity : Activity() {
 
     private fun readApkInfo() {
         try {
+            if (!checkAssetExists(APK_NAME)) {
+                return
+            }
+
             val tempFile = File(cacheDir, "temp.apk")
 
             FileOutputStream(tempFile).use { out ->
@@ -228,6 +304,11 @@ class MainActivity : Activity() {
                         out.write(buffer, 0, read)
                     }
                 }
+            }
+
+            if (!tempFile.exists() || tempFile.length() == 0L) {
+                tempFile.delete()
+                return
             }
 
             val info = packageManager.getPackageArchiveInfo(
