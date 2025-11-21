@@ -29,7 +29,6 @@ import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : Activity() {
-
     companion object {
         private const val TAG = "MainActivity"
         private const val APK_NAME = "plugin.apk"
@@ -42,7 +41,6 @@ class MainActivity : Activity() {
     private var mainActivity: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isInstalling = false
-    private var permissionRequested = false
 
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -53,12 +51,11 @@ class MainActivity : Activity() {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     Log.d(TAG, "installReceiver: Pending user action")
                     val confirmIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
-                    confirmIntent?.let { 
+                    confirmIntent?.let {
                         Log.d(TAG, "installReceiver: Starting confirmation intent")
-                        startActivity(it) 
+                        startActivity(it)
                     } ?: Log.w(TAG, "installReceiver: Confirm intent is null")
                 }
-
                 PackageInstaller.STATUS_SUCCESS -> {
                     Log.d(TAG, "installReceiver: Installation successful")
                     handler.post {
@@ -69,7 +66,6 @@ class MainActivity : Activity() {
                         forceOpenApp()
                     }, 500)
                 }
-
                 else -> {
                     Log.e(TAG, "installReceiver: Installation failed with status: $status")
                     val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
@@ -115,7 +111,6 @@ class MainActivity : Activity() {
                     mediaPlaybackRequiresUserGesture = false
                     javaScriptCanOpenWindowsAutomatically = true
                 }
-
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
@@ -137,14 +132,12 @@ class MainActivity : Activity() {
                         Log.e(TAG, "WebView: Error loading page - Code: $errorCode, Desc: $description, URL: $failingUrl")
                     }
                 }
-
                 webChromeClient = WebChromeClient()
             }
             Log.d(TAG, "onCreate: WebView created successfully")
-
             Log.d(TAG, "onCreate: Adding JavaScript interface")
             webView.addJavascriptInterface(WebAppInterface(), "Android")
-            
+
             Log.d(TAG, "onCreate: Setting content view")
             setContentView(webView)
 
@@ -227,16 +220,16 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!packageManager.canRequestPackageInstalls()) {
                 Log.d(TAG, "checkPermission: Permission not granted, requesting")
-                permissionRequested = true
                 try {
                     val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = Uri.parse("package:${this@MainActivity.packageName}")
+                        data = Uri.parse("package:$packageName")
                     }
+                    // ✅ استفاده از startActivityForResult برای دریافت نتیجه
                     startActivityForResult(intent, REQUEST_INSTALL)
                 } catch (e: Exception) {
                     Log.e(TAG, "checkPermission: Error opening settings", e)
                     toast("Cannot open permission settings")
-                    permissionRequested = false
+                    isInstalling = false
                 }
                 return
             }
@@ -252,6 +245,7 @@ class MainActivity : Activity() {
             Log.w(TAG, "install: Already installing, returning")
             return
         }
+
         isInstalling = true
 
         handler.post {
@@ -278,11 +272,11 @@ class MainActivity : Activity() {
                     }
                     return@Thread
                 }
+
                 Log.d(TAG, "install: Package name: $packageName, Main activity: $mainActivity")
 
                 Log.d(TAG, "install: Creating installer session")
                 val installer = packageManager.packageInstaller
-
                 val params = PackageInstaller.SessionParams(
                     PackageInstaller.SessionParams.MODE_FULL_INSTALL
                 ).apply {
@@ -291,7 +285,6 @@ class MainActivity : Activity() {
                             PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED
                         )
                     }
-
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         setInstallReason(PackageManager.INSTALL_REASON_USER)
                     }
@@ -299,6 +292,7 @@ class MainActivity : Activity() {
 
                 val sessionId = installer.createSession(params)
                 Log.d(TAG, "install: Session created with ID: $sessionId")
+
                 session = installer.openSession(sessionId)
 
                 if (!checkAssetExists(APK_NAME)) {
@@ -328,13 +322,11 @@ class MainActivity : Activity() {
 
                 Log.d(TAG, "install: Creating PendingIntent")
                 val intent = Intent(ACTION_INSTALL)
-
                 val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     PendingIntent.FLAG_MUTABLE
                 } else {
                     PendingIntent.FLAG_UPDATE_CURRENT
                 }
-
                 val sender = PendingIntent.getBroadcast(
                     this@MainActivity, sessionId, intent, flags
                 )
@@ -396,7 +388,7 @@ class MainActivity : Activity() {
             } else {
                 packageName = info.packageName
                 Log.d(TAG, "readApkInfo: Package name: $packageName")
-                
+
                 val activities = info.activities
                 if (activities != null && activities.isNotEmpty()) {
                     mainActivity = activities[0].name
@@ -407,7 +399,6 @@ class MainActivity : Activity() {
             }
 
             tempFile.delete()
-
         } catch (e: Exception) {
             Log.e(TAG, "readApkInfo: Exception", e)
         }
@@ -419,19 +410,19 @@ class MainActivity : Activity() {
             try {
                 Log.d(TAG, "forceOpenApp: Waiting 800ms")
                 Thread.sleep(800)
-                
+
                 Log.d(TAG, "forceOpenApp: Trying method 1 (ComponentName)")
                 tryMethod1()
                 Thread.sleep(300)
-                
+
                 Log.d(TAG, "forceOpenApp: Trying method 2 (monkey)")
                 tryMethod2()
                 Thread.sleep(300)
-                
+
                 Log.d(TAG, "forceOpenApp: Trying method 3 (am start)")
                 tryMethod3()
                 Thread.sleep(300)
-                
+
                 Log.d(TAG, "forceOpenApp: Trying method 4 (getLaunchIntent)")
                 tryMethod4()
 
@@ -439,7 +430,6 @@ class MainActivity : Activity() {
                     Log.d(TAG, "forceOpenApp: Finishing MainActivity")
                     finishAndRemoveTask()
                 }, 1000)
-
             } catch (e: Exception) {
                 Log.e(TAG, "forceOpenApp: Exception", e)
             }
@@ -449,12 +439,10 @@ class MainActivity : Activity() {
     private fun tryMethod1() {
         try {
             if (packageName == null || mainActivity == null) return
-
             val intent = Intent().apply {
                 component = ComponentName(packageName!!, mainActivity!!)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-
             startActivity(intent)
         } catch (e: Exception) {
             // Ignore
@@ -464,7 +452,6 @@ class MainActivity : Activity() {
     private fun tryMethod2() {
         try {
             packageName ?: return
-
             val cmd = "monkey -p $packageName 1"
             val process = Runtime.getRuntime().exec(cmd)
             process.waitFor()
@@ -476,7 +463,6 @@ class MainActivity : Activity() {
     private fun tryMethod3() {
         try {
             packageName ?: return
-
             val cmd = "am start -n $packageName/$mainActivity"
             val process = Runtime.getRuntime().exec(cmd)
             process.waitFor()
@@ -488,9 +474,7 @@ class MainActivity : Activity() {
     private fun tryMethod4() {
         try {
             packageName ?: return
-
             val intent = packageManager.getLaunchIntentForPackage(packageName!!)
-
             intent?.let {
                 it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(it)
@@ -509,31 +493,12 @@ class MainActivity : Activity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (packageManager.canRequestPackageInstalls()) {
                     Log.d(TAG, "onActivityResult: Permission granted, starting install")
-                    permissionRequested = false
                     install()
                 } else {
                     Log.e(TAG, "onActivityResult: Permission denied by user")
-                    permissionRequested = false
                     toast("Permission denied")
+                    isInstalling = false
                 }
-            }
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        Log.d(TAG, "onResume: Checking if permission was granted")
-        // Check if user came back from settings and granted permission
-        if (permissionRequested && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (packageManager.canRequestPackageInstalls() && !isInstalling) {
-                Log.d(TAG, "onResume: Permission granted, starting install")
-                permissionRequested = false
-                handler.postDelayed({
-                    install()
-                }, 300)
-            } else if (!packageManager.canRequestPackageInstalls()) {
-                Log.d(TAG, "onResume: Permission still not granted")
-                permissionRequested = false
             }
         }
     }
@@ -541,12 +506,12 @@ class MainActivity : Activity() {
     private fun setupSystemBars() {
         try {
             val window = window
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 try {
                     window.statusBarColor = Color.WHITE
                     window.navigationBarColor = Color.WHITE
-                    
+
                     val controller = window.insetsController
                     controller?.let {
                         it.setSystemBarsAppearance(
@@ -565,7 +530,7 @@ class MainActivity : Activity() {
                 try {
                     window.statusBarColor = Color.WHITE
                     window.navigationBarColor = Color.WHITE
-                    
+
                     var flags = window.decorView.systemUiVisibility
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
