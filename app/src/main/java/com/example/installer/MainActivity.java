@@ -1,5 +1,7 @@
 package com.example.installer;
 
+package com.example.installer;
+
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
