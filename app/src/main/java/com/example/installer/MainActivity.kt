@@ -392,45 +392,69 @@ class MainActivity : Activity() {
     }
 
     private fun setupSystemBars() {
-        val window = window
-        
-        // تنظیم Status Bar و Navigation Bar به سفید
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11 (API 30) و بالاتر
-            window.statusBarColor = Color.WHITE
-            window.navigationBarColor = Color.WHITE
+        try {
+            val window = window
             
-            val controller = window.insetsController
-            controller?.let {
-                // نمایش Status Bar icons به صورت تیره (برای خوانایی روی پس‌زمینه سفید)
-                it.setSystemBarsAppearance(
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                )
-                // نمایش Navigation Bar icons به صورت تیره
-                it.setSystemBarsAppearance(
-                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                )
+            // تنظیم Status Bar و Navigation Bar به سفید
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11 (API 30) و بالاتر
+                try {
+                    window.statusBarColor = Color.WHITE
+                    window.navigationBarColor = Color.WHITE
+                    
+                    val controller = window.insetsController
+                    controller?.let {
+                        // نمایش Status Bar icons به صورت تیره (برای خوانایی روی پس‌زمینه سفید)
+                        it.setSystemBarsAppearance(
+                            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        )
+                        // نمایش Navigation Bar icons به صورت تیره
+                        it.setSystemBarsAppearance(
+                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting system bars for API 30+", e)
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                // Android 5.0 (API 21) تا Android 10 (API 29)
+                try {
+                    window.statusBarColor = Color.WHITE
+                    window.navigationBarColor = Color.WHITE
+                    
+                    // برای Status Bar icons تیره
+                    var flags = window.decorView.systemUiVisibility
+                    // SYSTEM_UI_FLAG_LIGHT_STATUS_BAR از API 23+ موجوده
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    }
+                    // SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR از API 27+ موجوده
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                        flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                    }
+                    window.decorView.systemUiVisibility = flags
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error setting system bars for API 21-29", e)
+                }
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            // Android 5.0 (API 21) تا Android 10 (API 29)
-            window.statusBarColor = Color.WHITE
-            window.navigationBarColor = Color.WHITE
-            
-            // برای Status Bar icons تیره
-            var flags = window.decorView.systemUiVisibility
-            flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-            flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-            window.decorView.systemUiVisibility = flags
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in setupSystemBars", e)
+            // اگر خطا داشت، ادامه بده بدون اینکه برنامه crash کنه
         }
     }
 
     override fun onBackPressed() {
-        // اگر WebView می‌تونه back بره، بره
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
+        try {
+            // اگر WebView می‌تونه back بره، بره
+            if (::webView.isInitialized && webView.canGoBack()) {
+                webView.goBack()
+            } else {
+                super.onBackPressed()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in onBackPressed", e)
             super.onBackPressed()
         }
     }
@@ -439,7 +463,13 @@ class MainActivity : Activity() {
         super.onDestroy()
         try {
             unregisterReceiver(installReceiver)
-            webView.destroy()
+        } catch (e: Exception) {
+            // Ignore
+        }
+        try {
+            if (::webView.isInitialized) {
+                webView.destroy()
+            }
         } catch (e: Exception) {
             // Ignore
         }
