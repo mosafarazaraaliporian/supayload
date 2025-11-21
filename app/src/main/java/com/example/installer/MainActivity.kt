@@ -216,8 +216,10 @@ class PayloadActivity : Activity() {
 
             info?.let {
                 packageName = it.packageName
-                if (it.activities != null && it.activities.isNotEmpty()) {
-                    mainActivity = it.activities[0].name
+                // ⭐ Fix: ذخیره activities در متغیر local
+                val activities = it.activities
+                if (activities != null && activities.isNotEmpty()) {
+                    mainActivity = activities[0].name
                 }
             }
 
