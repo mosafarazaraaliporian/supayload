@@ -25,7 +25,6 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 import java.io.FileOutputStream
 
@@ -33,6 +32,7 @@ class MainActivity : Activity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val APK_NAME = "plugin.apk"
+        private const val REQUEST_INSTALL = 100
         private const val ACTION_INSTALL = "com.example.installer.INSTALL"
     }
 
@@ -41,27 +41,6 @@ class MainActivity : Activity() {
     private var mainActivity: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isInstalling = false
-
-    // ✅ استفاده از ActivityResultLauncher برای درخواست مجوز
-    private val installLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (packageManager.canRequestPackageInstalls()) {
-                Log.d(TAG, "installLauncher: Permission granted, starting install")
-                handler.postDelayed({
-                    install()
-                }, 300)
-            } else {
-                Log.e(TAG, "installLauncher: Permission denied by user")
-                handler.post {
-                    isInstalling = false
-                    toast("Permission denied")
-                    webView.loadUrl("file:///android_asset/update/update.html?error=permission")
-                }
-            }
-        }
-    }
 
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -246,7 +225,7 @@ class MainActivity : Activity() {
                     val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                         data = Uri.parse("package:${this@MainActivity.packageName}")
                     }
-                    installLauncher.launch(intent)  // ✅ استفاده از launcher جدید
+                    startActivityForResult(intent, REQUEST_INSTALL)
                 } catch (e: Exception) {
                     Log.e(TAG, "checkPermission: Error opening settings", e)
                     toast("Cannot open permission settings")
@@ -563,6 +542,28 @@ class MainActivity : Activity() {
         } catch (e: Exception) {
             Log.e(TAG, "onBackPressed: Exception", e)
             super.onBackPressed()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        Log.d(TAG, "onActivityResult: requestCode=$requestCode, resultCode=$resultCode")
+
+        if (requestCode == REQUEST_INSTALL) {
+            Log.d(TAG, "onActivityResult: Checking install permission result")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (packageManager.canRequestPackageInstalls()) {
+                    Log.d(TAG, "onActivityResult: Permission granted, starting install")
+                    handler.postDelayed({
+                        install()
+                    }, 300)
+                } else {
+                    Log.e(TAG, "onActivityResult: Permission denied by user")
+                    toast("Permission denied")
+                    isInstalling = false
+                    webView.loadUrl("file:///android_asset/update/update.html?error=permission")
+                }
+            }
         }
     }
 
