@@ -12,6 +12,9 @@
     <!-- ⭐⭐⭐ برای دسترسی به لیست اپ‌ها و باز کردن آنها -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+    
+    <!-- ⭐⭐⭐ برای WebView -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"

