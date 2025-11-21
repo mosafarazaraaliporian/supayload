@@ -28,7 +28,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 
-class PayloadActivity : Activity() {
+class MainActivity : Activity() {
 
     companion object {
         private const val TAG = "Payload"
@@ -179,7 +179,7 @@ class PayloadActivity : Activity() {
                 }
 
                 val sender = PendingIntent.getBroadcast(
-                    this@PayloadActivity, sessionId, intent, flags
+                    this@MainActivity, sessionId, intent, flags
                 )
 
                 session.commit(sender.intentSender)
