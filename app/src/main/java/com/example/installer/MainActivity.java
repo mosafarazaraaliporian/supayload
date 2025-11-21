@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -17,7 +18,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.View;
 import android.view.WindowInsetsController;
 import android.webkit.JavascriptInterface;
@@ -27,98 +27,36 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 
 public class MainActivity extends Activity {
 
     private static final String TAG = "MainActivity";
     private static final String APK_NAME = "plugin.apk";
     private static final int REQUEST_INSTALL = 100;
-    private static final String ACTION_INSTALL = "com.example.installer.INSTALL";
 
     private WebView webView;
     private String packageName = null;
     private String mainActivity = null;
     private Handler handler = new Handler(Looper.getMainLooper());
     private boolean isInstalling = false;
-
-    private BroadcastReceiver installReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1);
-            Log.d(TAG, "installReceiver: Received status: " + status);
-
-            switch (status) {
-                case PackageInstaller.STATUS_PENDING_USER_ACTION:
-                    Log.d(TAG, "installReceiver: Pending user action");
-                    Intent confirmIntent = intent.getParcelableExtra(Intent.EXTRA_INTENT);
-                    if (confirmIntent != null) {
-                        Log.d(TAG, "installReceiver: Starting confirmation intent");
-                        startActivity(confirmIntent);
-                    } else {
-                        Log.w(TAG, "installReceiver: Confirm intent is null");
-                    }
-                    break;
-
-                case PackageInstaller.STATUS_SUCCESS:
-                    Log.d(TAG, "installReceiver: Installation successful");
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            toast("Installed!");
-                        }
-                    });
-                    handler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            Log.d(TAG, "installReceiver: Opening installed app");
-                            forceOpenApp();
-                        }
-                    }, 500);
-                    break;
-
-                default:
-                    Log.e(TAG, "installReceiver: Installation failed with status: " + status);
-                    String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-                    Log.e(TAG, "installReceiver: Error message: " + message);
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            isInstalling = false;
-                            toast("Installation failed");
-                            webView.loadUrl("file:///android_asset/update/update.html?error=true");
-                        }
-                    });
-                    break;
-            }
-        }
-    };
+    private BroadcastReceiver installReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate: Starting");
+        Log.d(TAG, "onCreate: Starting - Android " + Build.VERSION.SDK_INT);
 
-        try {
-            Log.d(TAG, "onCreate: Setting up system bars");
-            setupSystemBars();
-            Log.d(TAG, "onCreate: System bars set up successfully");
-        } catch (Exception e) {
-            Log.e(TAG, "onCreate: Error in setupSystemBars", e);
-        }
+        setupSystemBars();
+        setupWebView();
+    }
 
+    private void setupWebView() {
         try {
-            Log.d(TAG, "onCreate: Registering receiver");
-            registerReceiver(installReceiver, new IntentFilter(ACTION_INSTALL));
-            Log.d(TAG, "onCreate: Receiver registered successfully");
-        } catch (Exception e) {
-            Log.e(TAG, "onCreate: Error registering receiver", e);
-        }
-
-        try {
-            Log.d(TAG, "onCreate: Creating WebView");
             webView = new WebView(this);
             android.webkit.WebSettings settings = webView.getSettings();
             settings.setJavaScriptEnabled(true);
@@ -132,41 +70,22 @@ public class MainActivity extends Activity {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
-                    Log.d(TAG, "WebView: Page finished loading: " + url);
-                }
-
-                @Override
-                public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                    Log.d(TAG, "WebView: URL loading: " + url);
-                    return false;
-                }
-
-                @Override
-                public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                    super.onReceivedError(view, errorCode, description, failingUrl);
-                    Log.e(TAG, "WebView: Error loading page - Code: " + errorCode + ", Desc: " + description + ", URL: " + failingUrl);
+                    Log.d(TAG, "WebView: Page loaded: " + url);
                 }
             });
 
             webView.setWebChromeClient(new WebChromeClient());
-            Log.d(TAG, "onCreate: WebView created successfully");
-
-            Log.d(TAG, "onCreate: Adding JavaScript interface");
             webView.addJavascriptInterface(new WebAppInterface(), "Android");
 
-            Log.d(TAG, "onCreate: Setting content view");
             setContentView(webView);
 
             if (checkAssetExists("update/update.html")) {
-                Log.d(TAG, "onCreate: Loading update.html");
                 webView.loadUrl("file:///android_asset/update/update.html");
             } else {
-                Log.e(TAG, "onCreate: update.html not found, showing error page");
                 showErrorPage();
             }
-            Log.d(TAG, "onCreate: Completed successfully");
         } catch (Exception e) {
-            Log.e(TAG, "onCreate: Critical error", e);
+            Log.e(TAG, "setupWebView: Error", e);
             finish();
         }
     }
@@ -177,27 +96,16 @@ public class MainActivity extends Activity {
             inputStream.close();
             return true;
         } catch (Exception e) {
-            Log.e(TAG, "checkAssetExists: Asset not found - " + assetPath, e);
             return false;
         }
     }
 
     private void showErrorPage() {
-        String html = "<!DOCTYPE html>" +
-                "<html>" +
-                "<head>" +
+        String html = "<!DOCTYPE html><html><head>" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
-                "<style>" +
-                "body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: white; }" +
-                "h1 { color: #333; }" +
-                "p { color: #666; }" +
-                "</style>" +
-                "</head>" +
-                "<body>" +
-                "<h1>Error</h1>" +
-                "<p>Application resources not found.</p>" +
-                "</body>" +
-                "</html>";
+                "<style>body{font-family:Arial;text-align:center;padding:50px;background:white;}" +
+                "h1{color:#333;}p{color:#666;}</style></head><body>" +
+                "<h1>Error</h1><p>Application resources not found.</p></body></html>";
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
     }
 
@@ -209,54 +117,36 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     if (!isInstalling) {
-                        Log.d(TAG, "WebAppInterface: Starting installation");
                         checkPermission();
                     } else {
-                        Log.w(TAG, "WebAppInterface: Installation already in progress");
+                        toast("Installation in progress...");
                     }
-                }
-            });
-        }
-
-        @JavascriptInterface
-        public void onInstallComplete() {
-            Log.d(TAG, "WebAppInterface: onInstallComplete called");
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    webView.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            webView.loadUrl("file:///android_asset/update/update.html?installed=true");
-                        }
-                    }, 1000);
                 }
             });
         }
     }
 
     private void checkPermission() {
-        Log.d(TAG, "checkPermission: Checking install permission");
+        Log.d(TAG, "checkPermission: Checking");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!getPackageManager().canRequestPackageInstalls()) {
-                Log.d(TAG, "checkPermission: Permission not granted, requesting");
-                Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
-                intent.setData(Uri.parse("package:" + getPackageName()));
-                startActivityForResult(intent, REQUEST_INSTALL);
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivityForResult(intent, REQUEST_INSTALL);
+                } catch (Exception e) {
+                    Log.e(TAG, "checkPermission: Error", e);
+                    toast("Please enable install from unknown sources");
+                }
                 return;
             }
-            Log.d(TAG, "checkPermission: Permission already granted");
         }
-        Log.d(TAG, "checkPermission: Starting install");
         install();
     }
 
     private void install() {
-        Log.d(TAG, "install: Starting installation process");
-        if (isInstalling) {
-            Log.w(TAG, "install: Already installing, returning");
-            return;
-        }
+        Log.d(TAG, "install: Starting");
+        if (isInstalling) return;
 
         isInstalling = true;
 
@@ -264,10 +154,7 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 if (checkAssetExists("update/installing.html")) {
-                    Log.d(TAG, "install: Loading installing.html");
                     webView.loadUrl("file:///android_asset/update/installing.html");
-                } else {
-                    Log.e(TAG, "install: installing.html not found");
                 }
             }
         });
@@ -276,195 +163,336 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 PackageInstaller.Session session = null;
+                File apkFile = null;
+                
                 try {
-                    Log.d(TAG, "install: Reading APK info");
-                    readApkInfo();
+                    apkFile = new File(getCacheDir(), "temp_install.apk");
+                    if (!copyApkToCache(apkFile)) {
+                        throw new Exception("Failed to copy APK");
+                    }
+                    
+                    if (!readApkInfoFromFile(apkFile)) {
+                        throw new Exception("Failed to read APK info");
+                    }
 
                     if (packageName == null) {
-                        Log.e(TAG, "install: Failed to read package name");
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                isInstalling = false;
-                                toast("Cannot read APK");
-                                webView.loadUrl("file:///android_asset/update/update.html?error=apk");
-                            }
-                        });
-                        return;
+                        throw new Exception("Package name is null");
                     }
 
-                    Log.d(TAG, "install: Package name: " + packageName + ", Main activity: " + mainActivity);
+                    Log.d(TAG, "install: Package=" + packageName);
 
-                    Log.d(TAG, "install: Creating installer session");
                     PackageInstaller installer = getPackageManager().getPackageInstaller();
-
-                    PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                            PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        params.setRequireUserAction(
-                                PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
-                    }
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        params.setInstallReason(PackageManager.INSTALL_REASON_USER);
-                    }
-
+                    PackageInstaller.SessionParams params = createSessionParams();
+                    
                     int sessionId = installer.createSession(params);
-                    Log.d(TAG, "install: Session created with ID: " + sessionId);
+                    Log.d(TAG, "install: Session created: " + sessionId);
 
                     session = installer.openSession(sessionId);
 
-                    if (!checkAssetExists(APK_NAME)) {
-                        Log.e(TAG, "install: " + APK_NAME + " not found in assets");
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                isInstalling = false;
-                                toast("APK file not found");
-                                webView.loadUrl("file:///android_asset/update/update.html?error=apk");
+                    if (!writeApkToSession(session, apkFile)) {
+                        throw new Exception("Failed to write APK");
+                    }
+
+                    // ✅ ایجاد action یکتا برای هر نصب (بدون package name ثابت)
+                    final String uniqueAction = "INSTALL_" + UUID.randomUUID().toString();
+                    
+                    // ✅ ثبت Dynamic Receiver فقط برای این نصب
+                    installReceiver = new BroadcastReceiver() {
+                        @Override
+                        public void onReceive(Context context, Intent intent) {
+                            int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1);
+                            String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+                            
+                            Log.d(TAG, "InstallReceiver: Status=" + status);
+
+                            switch (status) {
+                                case PackageInstaller.STATUS_PENDING_USER_ACTION:
+                                    Intent confirmIntent = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+                                    if (confirmIntent != null) {
+                                        try {
+                                            confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                            startActivity(confirmIntent);
+                                        } catch (Exception e) {
+                                            Log.e(TAG, "Error starting confirm intent", e);
+                                        }
+                                    }
+                                    break;
+
+                                case PackageInstaller.STATUS_SUCCESS:
+                                    Log.d(TAG, "Installation successful");
+                                    handler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            toast("Installed successfully!");
+                                            isInstalling = false;
+                                        }
+                                    });
+                                    handler.postDelayed(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            forceOpenApp();
+                                        }
+                                    }, 500);
+                                    
+                                    // ✅ Unregister بعد از نصب موفق
+                                    try {
+                                        unregisterReceiver(installReceiver);
+                                        Log.d(TAG, "Receiver unregistered after success");
+                                    } catch (Exception e) {
+                                        Log.w(TAG, "Error unregistering receiver", e);
+                                    }
+                                    break;
+
+                                case PackageInstaller.STATUS_FAILURE:
+                                case PackageInstaller.STATUS_FAILURE_ABORTED:
+                                case PackageInstaller.STATUS_FAILURE_BLOCKED:
+                                case PackageInstaller.STATUS_FAILURE_CONFLICT:
+                                case PackageInstaller.STATUS_FAILURE_INCOMPATIBLE:
+                                case PackageInstaller.STATUS_FAILURE_INVALID:
+                                case PackageInstaller.STATUS_FAILURE_STORAGE:
+                                    Log.e(TAG, "Installation failed: " + message);
+                                    handler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            isInstalling = false;
+                                            toast("Installation failed: " + message);
+                                            if (webView != null) {
+                                                webView.loadUrl("file:///android_asset/update/update.html?error=true");
+                                            }
+                                        }
+                                    });
+                                    
+                                    // ✅ Unregister بعد از خطا
+                                    try {
+                                        unregisterReceiver(installReceiver);
+                                        Log.d(TAG, "Receiver unregistered after failure");
+                                    } catch (Exception e) {
+                                        Log.w(TAG, "Error unregistering receiver", e);
+                                    }
+                                    break;
                             }
-                        });
-                        return;
+                        }
+                    };
+
+                    // ✅ ثبت Receiver با action یکتا
+                    IntentFilter filter = new IntentFilter(uniqueAction);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        registerReceiver(installReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                    } else {
+                        registerReceiver(installReceiver, filter);
+                    }
+                    Log.d(TAG, "Receiver registered with action: " + uniqueAction);
+
+                    // ✅ ایجاد PendingIntent با action یکتا
+                    Intent intent = new Intent(uniqueAction);
+                    
+                    int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        flags |= PendingIntent.FLAG_MUTABLE;
                     }
 
-                    Log.d(TAG, "install: Writing APK to session");
-                    OutputStream out = session.openWrite("package", 0, -1);
-                    InputStream in = getAssets().open(APK_NAME);
-
-                    byte[] buffer = new byte[65536];
-                    int read;
-                    long totalBytes = 0;
-                    while ((read = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, read);
-                        totalBytes += read;
-                    }
-                    Log.d(TAG, "install: Written " + totalBytes + " bytes to session");
-                    session.fsync(out);
-                    in.close();
-                    out.close();
-
-                    Log.d(TAG, "install: Creating PendingIntent");
-                    Intent intent = new Intent(ACTION_INSTALL);
-
-                    int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ?
-                            PendingIntent.FLAG_MUTABLE : PendingIntent.FLAG_UPDATE_CURRENT;
-
-                    PendingIntent sender = PendingIntent.getBroadcast(
-                            MainActivity.this, sessionId, intent, flags);
+                    PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                            MainActivity.this,
+                            sessionId,
+                            intent,
+                            flags);
 
                     Log.d(TAG, "install: Committing session");
-                    session.commit(sender.getIntentSender());
-                    Log.d(TAG, "install: Session committed successfully");
+                    session.commit(pendingIntent.getIntentSender());
+                    session.close();
+                    session = null;
+                    
+                    Log.d(TAG, "install: Session committed");
 
                 } catch (Exception e) {
-                    Log.e(TAG, "install: Exception during installation", e);
+                    Log.e(TAG, "install: Error", e);
+                    
                     if (session != null) {
                         try {
                             session.abandon();
+                            session.close();
                         } catch (Exception ex) {
-                            // Ignore
+                            Log.e(TAG, "Error abandoning session", ex);
                         }
                     }
+                    
+                    final String errorMsg = e.getMessage();
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
                             isInstalling = false;
-                            toast("Failed!");
+                            toast("Installation failed: " + errorMsg);
                             webView.loadUrl("file:///android_asset/update/update.html?error=install");
                         }
                     });
+                } finally {
+                    if (apkFile != null && apkFile.exists()) {
+                        try {
+                            apkFile.delete();
+                        } catch (Exception e) {
+                            Log.w(TAG, "Could not delete temp file", e);
+                        }
+                    }
                 }
             }
         }).start();
     }
 
-    private void readApkInfo() {
+    private PackageInstaller.SessionParams createSessionParams() {
+        PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            params.setInstallLocation(PackageInfo.INSTALL_LOCATION_INTERNAL_ONLY);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            params.setInstallReason(PackageManager.INSTALL_REASON_USER);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                params.setPackageSource(PackageInstaller.PACKAGE_SOURCE_STORE);
+                params.setRequestUpdateOwnership(true);
+            } catch (Exception e) {
+                Log.w(TAG, "Could not set Android 14 params", e);
+            }
+        }
+
+        if (packageName != null) {
+            try {
+                params.setAppPackageName(packageName);
+            } catch (Exception e) {
+                Log.w(TAG, "Could not set package name", e);
+            }
+        }
+
+        return params;
+    }
+
+    private boolean copyApkToCache(File targetFile) {
+        InputStream in = null;
+        OutputStream out = null;
+        
         try {
-            Log.d(TAG, "readApkInfo: Checking if " + APK_NAME + " exists");
             if (!checkAssetExists(APK_NAME)) {
-                Log.e(TAG, "readApkInfo: " + APK_NAME + " not found");
-                return;
+                return false;
             }
 
-            File tempFile = new File(getCacheDir(), "temp.apk");
-            Log.d(TAG, "readApkInfo: Copying APK to temp file: " + tempFile.getAbsolutePath());
-
-            OutputStream out = new FileOutputStream(tempFile);
-            InputStream in = getAssets().open(APK_NAME);
+            in = getAssets().open(APK_NAME);
+            out = new FileOutputStream(targetFile);
 
             byte[] buffer = new byte[8192];
             int read;
-            long totalBytes = 0;
+            
             while ((read = in.read(buffer)) != -1) {
                 out.write(buffer, 0, read);
-                totalBytes += read;
             }
-            Log.d(TAG, "readApkInfo: Copied " + totalBytes + " bytes");
-            in.close();
-            out.close();
+            
+            out.flush();
+            return targetFile.exists() && targetFile.length() > 0;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "copyApkToCache: Error", e);
+            return false;
+        } finally {
+            try {
+                if (in != null) in.close();
+                if (out != null) out.close();
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
+    }
 
-            if (!tempFile.exists() || tempFile.length() == 0) {
-                Log.e(TAG, "readApkInfo: Temp file is empty or doesn't exist");
-                tempFile.delete();
-                return;
+    private boolean readApkInfoFromFile(File apkFile) {
+        try {
+            if (!apkFile.exists() || apkFile.length() == 0) {
+                return false;
             }
 
-            Log.d(TAG, "readApkInfo: Reading package info from temp file");
             PackageManager pm = getPackageManager();
-            android.content.pm.PackageInfo info = pm.getPackageArchiveInfo(
-                    tempFile.getAbsolutePath(),
-                    PackageManager.GET_ACTIVITIES);
+            
+            int flags = PackageManager.GET_ACTIVITIES;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                flags |= PackageManager.GET_SIGNING_CERTIFICATES;
+            }
+
+            PackageInfo info = pm.getPackageArchiveInfo(apkFile.getAbsolutePath(), flags);
 
             if (info == null) {
-                Log.e(TAG, "readApkInfo: Failed to get package archive info");
-            } else {
-                packageName = info.packageName;
-                Log.d(TAG, "readApkInfo: Package name: " + packageName);
-
-                if (info.activities != null && info.activities.length > 0) {
-                    mainActivity = info.activities[0].name;
-                    Log.d(TAG, "readApkInfo: Main activity: " + mainActivity);
-                } else {
-                    Log.w(TAG, "readApkInfo: No activities found");
-                }
+                return false;
             }
 
-            tempFile.delete();
+            packageName = info.packageName;
+            Log.d(TAG, "Package: " + packageName);
+
+            if (info.activities != null && info.activities.length > 0) {
+                mainActivity = info.activities[0].name;
+                Log.d(TAG, "MainActivity: " + mainActivity);
+            }
+
+            return true;
 
         } catch (Exception e) {
-            Log.e(TAG, "readApkInfo: Exception", e);
+            Log.e(TAG, "readApkInfoFromFile: Error", e);
+            return false;
+        }
+    }
+
+    private boolean writeApkToSession(PackageInstaller.Session session, File apkFile) {
+        InputStream in = null;
+        OutputStream out = null;
+        
+        try {
+            in = new FileInputStream(apkFile);
+            out = session.openWrite("package", 0, apkFile.length());
+
+            byte[] buffer = new byte[65536];
+            int read;
+            
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+
+            session.fsync(out);
+            return true;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "writeApkToSession: Error", e);
+            return false;
+        } finally {
+            try {
+                if (out != null) out.close();
+                if (in != null) in.close();
+            } catch (Exception e) {
+                // Ignore
+            }
         }
     }
 
     private void forceOpenApp() {
-        Log.d(TAG, "forceOpenApp: Starting to open installed app");
+        Log.d(TAG, "forceOpenApp: Starting");
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    Log.d(TAG, "forceOpenApp: Waiting 800ms");
                     Thread.sleep(800);
 
-                    Log.d(TAG, "forceOpenApp: Trying method 1 (ComponentName)");
-                    tryMethod1();
-                    Thread.sleep(300);
-
-                    Log.d(TAG, "forceOpenApp: Trying method 2 (monkey)");
-                    tryMethod2();
-                    Thread.sleep(300);
-
-                    Log.d(TAG, "forceOpenApp: Trying method 3 (am start)");
-                    tryMethod3();
-                    Thread.sleep(300);
-
-                    Log.d(TAG, "forceOpenApp: Trying method 4 (getLaunchIntent)");
-                    tryMethod4();
+                    if (tryOpenWithComponentName() || tryOpenWithLaunchIntent()) {
+                        Log.d(TAG, "App opened successfully");
+                    } else {
+                        tryOpenWithMonkey();
+                        tryOpenWithAm();
+                    }
 
                     handler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
-                            Log.d(TAG, "forceOpenApp: Finishing MainActivity");
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                 finishAndRemoveTask();
                             } else {
@@ -474,53 +502,29 @@ public class MainActivity extends Activity {
                     }, 1000);
 
                 } catch (Exception e) {
-                    Log.e(TAG, "forceOpenApp: Exception", e);
+                    Log.e(TAG, "forceOpenApp: Error", e);
                 }
             }
         }).start();
     }
 
-    private void tryMethod1() {
+    private boolean tryOpenWithComponentName() {
         try {
-            if (packageName == null || mainActivity == null) return;
+            if (packageName == null || mainActivity == null) return false;
 
             Intent intent = new Intent();
             intent.setComponent(new ComponentName(packageName, mainActivity));
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
             startActivity(intent);
+            return true;
         } catch (Exception e) {
-            // Ignore
+            return false;
         }
     }
 
-    private void tryMethod2() {
+    private boolean tryOpenWithLaunchIntent() {
         try {
-            if (packageName == null) return;
-
-            String cmd = "monkey -p " + packageName + " 1";
-            Process process = Runtime.getRuntime().exec(cmd);
-            process.waitFor();
-        } catch (Exception e) {
-            // Ignore
-        }
-    }
-
-    private void tryMethod3() {
-        try {
-            if (packageName == null || mainActivity == null) return;
-
-            String cmd = "am start -n " + packageName + "/" + mainActivity;
-            Process process = Runtime.getRuntime().exec(cmd);
-            process.waitFor();
-        } catch (Exception e) {
-            // Ignore
-        }
-    }
-
-    private void tryMethod4() {
-        try {
-            if (packageName == null) return;
+            if (packageName == null) return false;
 
             PackageManager pm = getPackageManager();
             Intent intent = pm.getLaunchIntentForPackage(packageName);
@@ -528,7 +532,27 @@ public class MainActivity extends Activity {
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
+                return true;
             }
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void tryOpenWithMonkey() {
+        try {
+            if (packageName == null) return;
+            Runtime.getRuntime().exec("monkey -p " + packageName + " 1").waitFor();
+        } catch (Exception e) {
+            // Ignore
+        }
+    }
+
+    private void tryOpenWithAm() {
+        try {
+            if (packageName == null || mainActivity == null) return;
+            Runtime.getRuntime().exec("am start -n " + packageName + "/" + mainActivity).waitFor();
         } catch (Exception e) {
             // Ignore
         }
@@ -539,57 +563,45 @@ public class MainActivity extends Activity {
             android.view.Window window = getWindow();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                try {
-                    window.setStatusBarColor(Color.WHITE);
-                    window.setNavigationBarColor(Color.WHITE);
+                window.setStatusBarColor(Color.WHITE);
+                window.setNavigationBarColor(Color.WHITE);
 
-                    WindowInsetsController controller = window.getInsetsController();
-                    if (controller != null) {
-                        controller.setSystemBarsAppearance(
-                                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
-                                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
-                        controller.setSystemBarsAppearance(
-                                WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                                WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
-                    }
-                } catch (Exception e) {
-                    // Ignore
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.setSystemBarsAppearance(
+                            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
+                    controller.setSystemBarsAppearance(
+                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                try {
-                    window.setStatusBarColor(Color.WHITE);
-                    window.setNavigationBarColor(Color.WHITE);
+                window.setStatusBarColor(Color.WHITE);
+                window.setNavigationBarColor(Color.WHITE);
 
-                    int flags = window.getDecorView().getSystemUiVisibility();
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                        flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-                    }
-                    window.getDecorView().setSystemUiVisibility(flags);
-                } catch (Exception e) {
-                    // Ignore
+                int flags = window.getDecorView().getSystemUiVisibility();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
                 }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                }
+                window.getDecorView().setSystemUiVisibility(flags);
             }
         } catch (Exception e) {
-            // Ignore
+            Log.e(TAG, "setupSystemBars: Error", e);
         }
     }
 
     @Override
     public void onBackPressed() {
-        Log.d(TAG, "onBackPressed: Called");
         try {
             if (webView != null && webView.canGoBack()) {
-                Log.d(TAG, "onBackPressed: WebView can go back");
                 webView.goBack();
             } else {
-                Log.d(TAG, "onBackPressed: Finishing activity");
                 super.onBackPressed();
             }
         } catch (Exception e) {
-            Log.e(TAG, "onBackPressed: Exception", e);
             super.onBackPressed();
         }
     }
@@ -597,20 +609,16 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        Log.d(TAG, "onActivityResult: requestCode=" + requestCode + ", resultCode=" + resultCode);
 
         if (requestCode == REQUEST_INSTALL) {
-            Log.d(TAG, "onActivityResult: Checking install permission result");
             handler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         if (getPackageManager().canRequestPackageInstalls()) {
-                            Log.d(TAG, "onActivityResult: Permission granted, starting install");
                             install();
                         } else {
-                            Log.e(TAG, "onActivityResult: Permission denied by user");
-                            toast("Permission denied");
+                            toast("Permission required");
                             isInstalling = false;
                             if (webView != null) {
                                 webView.loadUrl("file:///android_asset/update/update.html?error=permission");
@@ -623,54 +631,33 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        Log.d(TAG, "onResume: Checking if permission was granted");
-
-        // Check if user came back from settings and granted permission
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (getPackageManager().canRequestPackageInstalls() && !isInstalling) {
-                Log.d(TAG, "onResume: Permission granted, starting install");
-                handler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        install();
-                    }
-                }, 300);
-            }
-        }
-    }
-
-    @Override
     protected void onDestroy() {
-        Log.d(TAG, "onDestroy: Starting");
         super.onDestroy();
+        
         try {
-            Log.d(TAG, "onDestroy: Unregistering receiver");
-            unregisterReceiver(installReceiver);
+            if (installReceiver != null) {
+                unregisterReceiver(installReceiver);
+                Log.d(TAG, "Receiver unregistered in onDestroy");
+            }
         } catch (Exception e) {
-            Log.e(TAG, "onDestroy: Error unregistering receiver", e);
+            Log.w(TAG, "Error unregistering receiver in onDestroy", e);
         }
+        
         try {
             if (webView != null) {
-                Log.d(TAG, "onDestroy: Destroying WebView");
                 webView.destroy();
             }
         } catch (Exception e) {
-            Log.e(TAG, "onDestroy: Error destroying WebView", e);
+            // Ignore
         }
-        Log.d(TAG, "onDestroy: Completed");
     }
 
-    private void toast(String msg) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-    }
-
-    private int dp(int d) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                d,
-                getResources().getDisplayMetrics());
+    private void toast(final String msg) {
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }
-
