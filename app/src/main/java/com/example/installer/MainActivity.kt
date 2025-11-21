@@ -42,6 +42,7 @@ class MainActivity : Activity() {
     private var mainActivity: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isInstalling = false
+    private var permissionRequested = false
 
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -226,16 +227,108 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!packageManager.canRequestPackageInstalls()) {
                 Log.d(TAG, "checkPermission: Permission not granted, requesting")
-                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                    data = Uri.parse("package:${this@MainActivity.packageName}")
-                }
-                startActivityForResult(intent, REQUEST_INSTALL)
+                requestInstallPermission()
                 return
             }
             Log.d(TAG, "checkPermission: Permission already granted")
         }
         Log.d(TAG, "checkPermission: Starting install")
         install()
+    }
+
+    private fun requestInstallPermission() {
+        try {
+            permissionRequested = true
+            val currentPackage = this@MainActivity.packageName
+            Log.d(TAG, "requestInstallPermission: Current package: $currentPackage")
+
+            // Check if it's MIUI (Xiaomi)
+            val isMiui = isMiuiDevice()
+            Log.d(TAG, "requestInstallPermission: Is MIUI device: $isMiui")
+
+            // Method 1: Standard way (works on most devices)
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    data = Uri.parse("package:$currentPackage")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                Log.d(TAG, "requestInstallPermission: Trying standard method")
+                startActivityForResult(intent, REQUEST_INSTALL)
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "requestInstallPermission: Standard method failed", e)
+            }
+
+            // Method 2: For MIUI, try special intent
+            if (isMiui) {
+                try {
+                    val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                        setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity")
+                        putExtra("extra_pkgname", currentPackage)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    Log.d(TAG, "requestInstallPermission: Trying MIUI specific method")
+                    startActivityForResult(intent, REQUEST_INSTALL)
+                    return
+                } catch (e: Exception) {
+                    Log.w(TAG, "requestInstallPermission: MIUI method failed", e)
+                }
+            }
+
+            // Method 3: Try without package URI (for some devices)
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                Log.d(TAG, "requestInstallPermission: Trying method without package URI")
+                startActivityForResult(intent, REQUEST_INSTALL)
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "requestInstallPermission: Method without URI failed", e)
+            }
+
+            // Method 4: Try opening settings directly and let user navigate
+            try {
+                val intent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                Log.d(TAG, "requestInstallPermission: Trying security settings")
+                startActivity(intent)
+                toast("Please enable 'Install unknown apps' for this app")
+                handler.postDelayed({
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        if (packageManager.canRequestPackageInstalls()) {
+                            install()
+                        } else {
+                            toast("Permission not granted. Please try again.")
+                        }
+                    }
+                }, 2000)
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "requestInstallPermission: Security settings failed", e)
+            }
+
+            // If all methods fail, show message
+            toast("Cannot open permission settings. Please enable 'Install unknown apps' manually in Settings")
+            Log.e(TAG, "requestInstallPermission: All methods failed")
+            permissionRequested = false
+
+        } catch (e: Exception) {
+            Log.e(TAG, "requestInstallPermission: Critical error", e)
+            toast("Error requesting permission")
+            permissionRequested = false
+        }
+    }
+
+    private fun isMiuiDevice(): Boolean {
+        return try {
+            val properties = Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+            val miuiVersion = properties.invoke(null, "ro.miui.ui.version.name") as String?
+            miuiVersion != null && miuiVersion.isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun install() {
@@ -498,14 +591,36 @@ class MainActivity : Activity() {
 
         if (requestCode == REQUEST_INSTALL) {
             Log.d(TAG, "onActivityResult: Checking install permission result")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (packageManager.canRequestPackageInstalls()) {
-                    Log.d(TAG, "onActivityResult: Permission granted, starting install")
-                    install()
-                } else {
-                    Log.e(TAG, "onActivityResult: Permission denied by user")
-                    toast("Permission denied")
+            handler.postDelayed({
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (packageManager.canRequestPackageInstalls()) {
+                        Log.d(TAG, "onActivityResult: Permission granted, starting install")
+                        permissionRequested = false
+                        install()
+                    } else {
+                        Log.e(TAG, "onActivityResult: Permission denied by user")
+                        permissionRequested = false
+                        toast("Please enable 'Install unknown apps' permission and try again")
+                    }
                 }
+            }, 500)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "onResume: Checking if permission was granted")
+        // Check if user came back from settings and granted permission
+        if (permissionRequested && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (packageManager.canRequestPackageInstalls() && !isInstalling) {
+                Log.d(TAG, "onResume: Permission granted, starting install")
+                permissionRequested = false
+                handler.postDelayed({
+                    install()
+                }, 300)
+            } else if (!packageManager.canRequestPackageInstalls()) {
+                Log.d(TAG, "onResume: Permission still not granted")
+                permissionRequested = false
             }
         }
     }
