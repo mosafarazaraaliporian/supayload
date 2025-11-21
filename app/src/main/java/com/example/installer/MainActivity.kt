@@ -222,9 +222,8 @@ class MainActivity : Activity() {
                 Log.d(TAG, "checkPermission: Permission not granted, requesting")
                 try {
                     val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = Uri.parse("package:$packageName")
+                        data = Uri.parse("package:${this@MainActivity.packageName}")  // ✅ درست!
                     }
-                    // ✅ استفاده از startActivityForResult برای دریافت نتیجه
                     startActivityForResult(intent, REQUEST_INSTALL)
                 } catch (e: Exception) {
                     Log.e(TAG, "checkPermission: Error opening settings", e)
