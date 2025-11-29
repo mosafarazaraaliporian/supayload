@@ -2,9 +2,9 @@ name: 🚀 Android CI/CD Build Pipeline
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ "*" ]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ "*" ]
   workflow_dispatch:
 
 jobs:
@@ -35,6 +35,14 @@ jobs:
 
       - name: 🔑 Grant execute permission for gradlew
         run: chmod +x gradlew
+
+      - name: 📦 Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 36
+          build-tools: 34.0.0
+          ndk-version: 26.1.10909125
+          cmake-version: 3.22.1
 
       - name: 🧹 Clean previous builds
         run: ./gradlew clean
