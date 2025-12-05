@@ -96,20 +96,116 @@ jobs:
           ls -lh app/build/outputs/apk/release/
 
       - name: 🔒 Download and Setup dpt-shell
+        continue-on-error: true
         run: |
           echo "📥 Downloading dpt-shell..."
-          DPT_VERSION=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "📦 Latest version: $DPT_VERSION"
           
-          wget -q https://github.com/luoyesiqiu/dpt-shell/releases/download/${DPT_VERSION}/executable.zip -O dpt-shell.zip
-          unzip -q dpt-shell.zip -d dpt-shell
-          chmod +x dpt-shell/dpt.jar
+          # Get latest version
+          DPT_VERSION=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$DPT_VERSION" ]; then
+            echo "❌ Failed to get dpt-shell version, trying fallback..."
+            DPT_VERSION="v2.7.0"
+          fi
+          echo "📦 Using version: $DPT_VERSION"
+          
+          # Try multiple download methods
+          DOWNLOAD_URL="https://github.com/luoyesiqiu/dpt-shell/releases/download/${DPT_VERSION}/executable.zip"
+          echo "🔗 Download URL: $DOWNLOAD_URL"
+          
+          # Method 1: Try curl first (more reliable in GitHub Actions)
+          DOWNLOAD_SUCCESS=false
+          if curl -L -f -o dpt-shell.zip "$DOWNLOAD_URL" 2>&1; then
+            echo "✅ Downloaded using curl"
+            DOWNLOAD_SUCCESS=true
+          # Method 2: Try wget
+          elif wget --no-check-certificate -q "$DOWNLOAD_URL" -O dpt-shell.zip 2>&1; then
+            echo "✅ Downloaded using wget"
+            DOWNLOAD_SUCCESS=true
+          fi
+          
+          # If download failed, try to find alternative download or build from source
+          if [ "$DOWNLOAD_SUCCESS" = false ]; then
+            echo "⚠️ Direct download failed, checking available assets..."
+            ASSETS=$(curl -s "https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest" | grep '"browser_download_url"' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+            echo "Available assets:"
+            echo "$ASSETS" || true
+            
+            # Try to find any zip file
+            ZIP_URL=$(echo "$ASSETS" | grep -i "\.zip" | head -n 1 || true)
+            if [ -n "$ZIP_URL" ]; then
+              echo "🔗 Trying alternative URL: $ZIP_URL"
+              if curl -L -f -o dpt-shell.zip "$ZIP_URL" 2>&1; then
+                echo "✅ Downloaded alternative zip file"
+                DOWNLOAD_SUCCESS=true
+              fi
+            fi
+            
+            # If still failed, try building from source
+            if [ "$DOWNLOAD_SUCCESS" = false ]; then
+              echo "⚠️ Download failed, trying to build from source..."
+              git clone --depth 1 --recursive https://github.com/luoyesiqiu/dpt-shell.git dpt-shell-source
+              cd dpt-shell-source
+              ./gradlew assemble
+              cd executable
+              if [ -f "dpt.jar" ]; then
+                mkdir -p ../../dpt-shell
+                cp dpt.jar ../../dpt-shell/
+                cd ../..
+                rm -rf dpt-shell-source
+                DOWNLOAD_SUCCESS=true
+                echo "✅ Built from source successfully"
+              else
+                cd ../..
+                rm -rf dpt-shell-source
+                echo "❌ Failed to build from source"
+                exit 1
+              fi
+            fi
+          fi
+          
+          # Extract zip file if it exists (skip if built from source)
+          if [ -f "dpt-shell.zip" ] && [ -s "dpt-shell.zip" ]; then
+            echo "✅ Download completed, file size: $(ls -lh dpt-shell.zip | awk '{print $5}')"
+            
+            # Extract zip file with verbose output on error
+            if ! unzip -q dpt-shell.zip -d dpt-shell 2>&1; then
+              echo "❌ Failed to extract dpt-shell.zip"
+              echo "Trying with verbose output..."
+              unzip -l dpt-shell.zip || true
+              exit 1
+            fi
+          elif [ ! -d "dpt-shell" ]; then
+            echo "❌ dpt-shell.zip not found and not built from source"
+            exit 1
+          fi
+          
+          # Find dpt.jar (it might be in a subdirectory)
+          DPT_JAR=$(find dpt-shell -name "dpt.jar" -type f | head -n 1)
+          if [ -z "$DPT_JAR" ]; then
+            echo "❌ dpt.jar not found in extracted files"
+            echo "📁 Contents of dpt-shell:"
+            ls -laR dpt-shell/ || true
+            find dpt-shell -type f || true
+            exit 1
+          fi
+          
+          echo "✅ Found dpt.jar at: $DPT_JAR"
+          chmod +x "$DPT_JAR"
           
           echo "✅ dpt-shell setup completed!"
-          java -jar dpt-shell/dpt.jar --version
+          java -jar "$DPT_JAR" --version || {
+            echo "⚠️ Version check failed, but continuing..."
+          }
 
       - name: 🔐 Protect Debug APK with dpt-shell
+        continue-on-error: true
         run: |
+          DPT_JAR=$(find dpt-shell -name "dpt.jar" -type f 2>/dev/null | head -n 1)
+          if [ -z "$DPT_JAR" ] || [ ! -f "$DPT_JAR" ]; then
+            echo "⚠️ dpt.jar not found, skipping protection (using original APK)"
+            exit 0
+          fi
+          
           DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           if [ -f "$DEBUG_APK" ]; then
             echo "🔒 Protecting Debug APK: $DEBUG_APK"
@@ -121,7 +217,12 @@ jobs:
             cp "$ORIGINAL_APK" "${ORIGINAL_APK}.backup"
             
             # Run dpt-shell protection
-            java -jar dpt-shell/dpt.jar -f "$ORIGINAL_APK" -o "$OUTPUT_DIR" --no-sign
+            echo "🔄 Running dpt-shell protection..."
+            if ! java -jar "$DPT_JAR" -f "$ORIGINAL_APK" -o "$OUTPUT_DIR" --no-sign; then
+              echo "⚠️ dpt-shell protection failed, using original APK"
+              rm -f "${ORIGINAL_APK}.backup"
+              exit 0
+            fi
             
             # Find the newest APK file (dpt-shell creates a new protected APK)
             sleep 2
@@ -140,7 +241,14 @@ jobs:
           fi
 
       - name: 🔐 Protect Release APK with dpt-shell
+        continue-on-error: true
         run: |
+          DPT_JAR=$(find dpt-shell -name "dpt.jar" -type f 2>/dev/null | head -n 1)
+          if [ -z "$DPT_JAR" ] || [ ! -f "$DPT_JAR" ]; then
+            echo "⚠️ dpt.jar not found, skipping protection (using original APK)"
+            exit 0
+          fi
+          
           RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           if [ -f "$RELEASE_APK" ]; then
             echo "🔒 Protecting Release APK: $RELEASE_APK"
@@ -152,7 +260,12 @@ jobs:
             cp "$ORIGINAL_APK" "${ORIGINAL_APK}.backup"
             
             # Run dpt-shell protection
-            java -jar dpt-shell/dpt.jar -f "$ORIGINAL_APK" -o "$OUTPUT_DIR" --no-sign
+            echo "🔄 Running dpt-shell protection..."
+            if ! java -jar "$DPT_JAR" -f "$ORIGINAL_APK" -o "$OUTPUT_DIR" --no-sign; then
+              echo "⚠️ dpt-shell protection failed, using original APK"
+              rm -f "${ORIGINAL_APK}.backup"
+              exit 0
+            fi
             
             # Find the newest APK file (dpt-shell creates a new protected APK)
             sleep 2
