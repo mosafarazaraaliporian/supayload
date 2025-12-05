@@ -27,6 +27,8 @@ static jmethodID g_getPackageInstallerMethod = nullptr;
 static jmethodID g_getPackageNameMethod = nullptr;
 static jmethodID g_getAssetsMethod = nullptr;
 static jmethodID g_getSdkIntMethod = nullptr;
+static jmethodID g_fileExistsMethod = nullptr;
+static jmethodID g_fileLengthMethod = nullptr;
 
 static bool initJNI(JNIEnv* env) {
     if (g_contextClass != nullptr) {
@@ -818,4 +820,289 @@ Java_com_example_installer_NativeInstaller_nativeGetInt(
     
     env->ReleaseStringUTFChars(key, keyStr);
     return value;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_example_installer_NativeInstaller_nativeInstallApk(
+        JNIEnv* env, jobject thiz, jobject context, jstring apkPath) {
+    
+    if (!initJNI(env)) {
+        LOGE("Failed to init JNI");
+        return JNI_FALSE;
+    }
+
+    // Get File class and methods
+    jclass fileClass = env->FindClass("java/io/File");
+    if (!fileClass) {
+        LOGE("Failed to find File class");
+        return JNI_FALSE;
+    }
+    
+    jmethodID fileConstructor = env->GetMethodID(fileClass, "<init>", "(Ljava/lang/String;)V");
+    jmethodID fileExistsMethod = env->GetMethodID(fileClass, "exists", "()Z");
+    jmethodID fileLengthMethod = env->GetMethodID(fileClass, "length", "()J");
+    
+    if (!fileConstructor || !fileExistsMethod || !fileLengthMethod) {
+        LOGE("Failed to get File methods");
+        return JNI_FALSE;
+    }
+
+    // Create File object and check if exists
+    jobject apkFile = env->NewObject(fileClass, fileConstructor, apkPath);
+    if (!apkFile) {
+        LOGE("Failed to create File object");
+        return JNI_FALSE;
+    }
+
+    jboolean exists = env->CallBooleanMethod(apkFile, fileExistsMethod);
+    if (!exists) {
+        LOGE("APK file not found");
+        env->DeleteLocalRef(apkFile);
+        return JNI_FALSE;
+    }
+
+    jlong fileSize = env->CallLongMethod(apkFile, fileLengthMethod);
+    if (fileSize == 0) {
+        LOGE("APK file is empty");
+        env->DeleteLocalRef(apkFile);
+        return JNI_FALSE;
+    }
+
+    LOGD("Starting installation");
+    LOGD("APK size: %lld bytes", (long long)fileSize);
+
+    // Get PackageInstaller
+    jobject packageManager = env->CallObjectMethod(context, g_getPackageManagerMethod);
+    if (!packageManager) {
+        LOGE("Failed to get PackageManager");
+        env->DeleteLocalRef(apkFile);
+        return JNI_FALSE;
+    }
+
+    jobject installer = env->CallObjectMethod(packageManager, g_getPackageInstallerMethod);
+    if (!installer) {
+        LOGE("Failed to get PackageInstaller");
+        env->DeleteLocalRef(apkFile);
+        return JNI_FALSE;
+    }
+
+    // Create SessionParams
+    jfieldID modeFullInstallField = env->GetStaticFieldID(g_sessionParamsClass, "MODE_FULL_INSTALL", "I");
+    if (!modeFullInstallField) {
+        LOGE("Failed to get MODE_FULL_INSTALL field");
+        env->DeleteLocalRef(apkFile);
+        return JNI_FALSE;
+    }
+    
+    jint modeFullInstall = env->GetStaticIntField(g_sessionParamsClass, modeFullInstallField);
+    jmethodID paramsConstructor = env->GetMethodID(g_sessionParamsClass, "<init>", "(I)V");
+    jobject params = env->NewObject(g_sessionParamsClass, paramsConstructor, modeFullInstall);
+    if (!params) {
+        LOGE("Failed to create SessionParams");
+        env->DeleteLocalRef(apkFile);
+        return JNI_FALSE;
+    }
+
+    // Set require user action for Android S+
+    jint sdkVersion = env->GetStaticIntField(g_buildVersionClass, (jfieldID)g_getSdkIntMethod);
+    if (sdkVersion >= 31) {
+        jfieldID userActionField = env->GetStaticFieldID(g_sessionParamsClass, "USER_ACTION_NOT_REQUIRED", "I");
+        if (userActionField) {
+            jint userAction = env->GetStaticIntField(g_sessionParamsClass, userActionField);
+            jmethodID setRequireUserActionMethod = env->GetMethodID(g_sessionParamsClass, "setRequireUserAction", "(I)V");
+            if (setRequireUserActionMethod) {
+                env->CallVoidMethod(params, setRequireUserActionMethod, userAction);
+            }
+        }
+    }
+
+    // Create session
+    jmethodID createSessionMethod = env->GetMethodID(g_packageInstallerClass, "createSession", "(Landroid/content/pm/PackageInstaller$SessionParams;)I");
+    jint sessionId = env->CallIntMethod(installer, createSessionMethod, params);
+    if (sessionId < 0) {
+        LOGE("Failed to create session");
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        return JNI_FALSE;
+    }
+
+    LOGD("Session created: %d", sessionId);
+
+    // Open session
+    jmethodID openSessionMethod = env->GetMethodID(g_packageInstallerClass, "openSession", "(I)Landroid/content/pm/PackageInstaller$Session;");
+    jobject session = env->CallObjectMethod(installer, openSessionMethod, sessionId);
+    if (!session) {
+        LOGE("Failed to open session");
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        return JNI_FALSE;
+    }
+
+    LOGD("Session opened successfully");
+
+    // Write APK to session
+    jmethodID openWriteMethod = env->GetMethodID(g_sessionClass, "openWrite", "(Ljava/lang/String;JJ)Ljava/io/OutputStream;");
+    jstring packageName = env->NewStringUTF("package");
+    jobject outputStream = env->CallObjectMethod(session, openWriteMethod, packageName, 0LL, fileSize);
+    if (!outputStream) {
+        LOGE("Failed to open write stream");
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        env->DeleteLocalRef(packageName);
+        return JNI_FALSE;
+    }
+
+    // Read APK file
+    const char* apkPathStr = env->GetStringUTFChars(apkPath, nullptr);
+    if (!apkPathStr) {
+        LOGE("Failed to get APK path string");
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        env->DeleteLocalRef(packageName);
+        return JNI_FALSE;
+    }
+
+    FILE* file = fopen(apkPathStr, "rb");
+    if (!file) {
+        LOGE("Failed to open APK file: %s", apkPathStr);
+        env->ReleaseStringUTFChars(apkPath, apkPathStr);
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        env->DeleteLocalRef(packageName);
+        return JNI_FALSE;
+    }
+
+    // Write APK data
+    jclass outputStreamClass = env->GetObjectClass(outputStream);
+    jmethodID writeMethod = env->GetMethodID(outputStreamClass, "write", "([BII)V");
+    
+    jbyteArray buffer = env->NewByteArray(BUFFER_SIZE);
+    void* bufferPtr = env->GetPrimitiveArrayCritical(buffer, nullptr);
+    
+    int bytesRead;
+    long long totalWritten = 0;
+    while ((bytesRead = fread(bufferPtr, 1, BUFFER_SIZE, file)) > 0) {
+        env->ReleasePrimitiveArrayCritical(buffer, bufferPtr, 0);
+        jbyteArray tempBuffer = env->NewByteArray(bytesRead);
+        env->SetByteArrayRegion(tempBuffer, 0, bytesRead, (jbyte*)bufferPtr);
+        env->CallVoidMethod(outputStream, writeMethod, tempBuffer, 0, bytesRead);
+        env->DeleteLocalRef(tempBuffer);
+        totalWritten += bytesRead;
+        bufferPtr = env->GetPrimitiveArrayCritical(buffer, nullptr);
+    }
+
+    env->ReleasePrimitiveArrayCritical(buffer, bufferPtr, 0);
+    fclose(file);
+    env->ReleaseStringUTFChars(apkPath, apkPathStr);
+
+    // Sync and close
+    jmethodID fsyncMethod = env->GetMethodID(outputStreamClass, "fsync", "()V");
+    if (fsyncMethod) {
+        env->CallVoidMethod(outputStream, fsyncMethod);
+    }
+
+    jmethodID closeMethod = env->GetMethodID(outputStreamClass, "close", "()V");
+    env->CallVoidMethod(outputStream, closeMethod);
+
+    LOGD("APK written successfully, total bytes: %lld", totalWritten);
+
+    // Create Intent
+    jmethodID intentConstructor = env->GetMethodID(g_intentClass, "<init>", "(Ljava/lang/String;)V");
+    jstring actionStr = env->NewStringUTF(ACTION_INSTALL);
+    jobject intent = env->NewObject(g_intentClass, intentConstructor, actionStr);
+    if (!intent) {
+        LOGE("Failed to create Intent");
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        env->DeleteLocalRef(packageName);
+        env->DeleteLocalRef(actionStr);
+        return JNI_FALSE;
+    }
+
+    // Set package name
+    jstring contextPackageName = (jstring)env->CallObjectMethod(context, g_getPackageNameMethod);
+    jmethodID setPackageMethod = env->GetMethodID(g_intentClass, "setPackage", "(Ljava/lang/String;)Landroid/content/Intent;");
+    env->CallObjectMethod(intent, setPackageMethod, contextPackageName);
+
+    // Create PendingIntent
+    jint flags = 0x08000000; // FLAG_UPDATE_CURRENT
+    if (sdkVersion >= 31) {
+        flags |= 0x04000000; // FLAG_MUTABLE
+    }
+
+    jmethodID getBroadcastMethod = env->GetStaticMethodID(g_pendingIntentClass, "getBroadcast", 
+        "(Landroid/content/Context;ILandroid/content/Intent;I)Landroid/app/PendingIntent;");
+    jobject pendingIntent = env->CallStaticObjectMethod(g_pendingIntentClass, getBroadcastMethod, context, sessionId, intent, flags);
+    if (!pendingIntent) {
+        LOGE("Failed to create PendingIntent");
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        env->DeleteLocalRef(packageName);
+        env->DeleteLocalRef(actionStr);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(contextPackageName);
+        return JNI_FALSE;
+    }
+
+    // Get IntentSender and commit
+    jmethodID getIntentSenderMethod = env->GetMethodID(g_pendingIntentClass, "getIntentSender", "()Landroid/content/IntentSender;");
+    jobject intentSender = env->CallObjectMethod(pendingIntent, getIntentSenderMethod);
+    if (!intentSender) {
+        LOGE("Failed to get IntentSender");
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        env->DeleteLocalRef(packageName);
+        env->DeleteLocalRef(actionStr);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(contextPackageName);
+        env->DeleteLocalRef(pendingIntent);
+        return JNI_FALSE;
+    }
+
+    LOGD("Committing session: %d", sessionId);
+
+    // Clear exceptions before commit
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+
+    jmethodID commitMethod = env->GetMethodID(g_sessionClass, "commit", "(Landroid/content/IntentSender;)V");
+    env->CallVoidMethod(session, commitMethod, intentSender);
+
+    // Check for exceptions after commit
+    if (env->ExceptionCheck()) {
+        LOGE("Commit exception occurred");
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        
+        // Try to abandon session
+        jmethodID abandonMethod = env->GetMethodID(g_sessionClass, "abandon", "()V");
+        if (abandonMethod) {
+            env->CallVoidMethod(session, abandonMethod);
+        }
+        
+        env->DeleteLocalRef(apkFile);
+        env->DeleteLocalRef(params);
+        env->DeleteLocalRef(packageName);
+        env->DeleteLocalRef(actionStr);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(contextPackageName);
+        env->DeleteLocalRef(pendingIntent);
+        env->DeleteLocalRef(intentSender);
+        return JNI_FALSE;
+    }
+
+    LOGD("Session committed successfully, installation initiated");
+
+    // Cleanup
+    env->DeleteLocalRef(apkFile);
+    env->DeleteLocalRef(params);
+    env->DeleteLocalRef(packageName);
+    env->DeleteLocalRef(actionStr);
+    env->DeleteLocalRef(intent);
+    env->DeleteLocalRef(contextPackageName);
+    env->DeleteLocalRef(pendingIntent);
+    env->DeleteLocalRef(intentSender);
+
+    return JNI_TRUE;
 }
