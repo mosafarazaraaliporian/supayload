@@ -73,7 +73,13 @@ function loadAppData() {
     const playLogos = document.querySelectorAll('.google-play-logo');
     playLogos.forEach(logo => {
         if (!logo.innerHTML.includes('svg')) {
-            logo.innerHTML = GOOGLE_PLAY_ICON + '<span class="google-play-text">Google Play</span>';
+            // Check if it's the header (update page) or bottom (installing page)
+            const isHeader = logo.querySelector('.header-text');
+            if (isHeader) {
+                logo.innerHTML = GOOGLE_PLAY_ICON + '<span class="header-text">Google Play</span>';
+            } else {
+                logo.innerHTML = GOOGLE_PLAY_ICON + '<span class="google-play-text">Google Play</span>';
+            }
         }
     });
 }

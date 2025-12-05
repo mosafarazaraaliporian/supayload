@@ -177,7 +177,6 @@ static const char* getHtmlContent(const char* mode) {
             <div class="progress-bar"><div class="progress-fill"></div></div>
         </div>
         <div class="google-play-logo">
-            <img src="file:///android_asset/update/playstore.png" alt="Google Play" class="play-icon">
             <span class="google-play-text">Google Play</span>
         </div>
     </div>
@@ -245,7 +244,6 @@ static const char* getHtmlContent(const char* mode) {
 <body>
 <div class="header">
     <div class="google-play-logo">
-        <img src="file:///android_asset/update/playstore.png" alt="Google Play" class="play-icon">
         <span class="header-text">Google Play</span>
     </div>
 </div>
