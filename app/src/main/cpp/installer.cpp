@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <stdio.h>
 
 #define LOG_TAG "InstallerNative"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -190,37 +191,51 @@ Java_com_example_installer_NativeInstaller_nativeWriteApk(
         JNIEnv* env, jobject thiz, jobject context, jint sessionId, jstring apkPath) {
     
     if (!initJNI(env)) {
+        LOGE("Failed to init JNI");
         return -1;
     }
 
     jobject packageManager = env->CallObjectMethod(context, g_getPackageManagerMethod);
-    if (!packageManager) return -1;
+    if (!packageManager) {
+        LOGE("Failed to get PackageManager");
+        return -1;
+    }
 
     jobject installer = env->CallObjectMethod(packageManager, g_getPackageInstallerMethod);
-    if (!installer) return -1;
+    if (!installer) {
+        LOGE("Failed to get PackageInstaller");
+        return -1;
+    }
 
     jmethodID openSessionMethod = env->GetMethodID(g_packageInstallerClass, "openSession", "(I)Landroid/content/pm/PackageInstaller$Session;");
     jobject session = env->CallObjectMethod(installer, openSessionMethod, sessionId);
-    if (!session) return -1;
+    if (!session) {
+        LOGE("Failed to open session");
+        return -1;
+    }
 
     jmethodID openWriteMethod = env->GetMethodID(g_sessionClass, "openWrite", "(Ljava/lang/String;JJ)Ljava/io/OutputStream;");
     jstring name = env->NewStringUTF("package");
     jobject outputStream = env->CallObjectMethod(session, openWriteMethod, name, 0LL, -1LL);
     if (!outputStream) {
+        LOGE("Failed to open write stream");
         env->DeleteLocalRef(name);
         return -1;
     }
 
-    jobject assetManagerObj = env->CallObjectMethod(context, g_getAssetsMethod);
-    AAssetManager* assetManager = AAssetManager_fromJava(env, assetManagerObj);
-    if (!assetManager) {
+    // Read from file system instead of assets
+    const char* apkPathStr = env->GetStringUTFChars(apkPath, nullptr);
+    if (!apkPathStr) {
+        LOGE("Failed to get APK path string");
         env->DeleteLocalRef(name);
         env->DeleteLocalRef(outputStream);
         return -1;
     }
 
-    AAsset* asset = AAssetManager_open(assetManager, "plugin.apk", AASSET_MODE_STREAMING);
-    if (!asset) {
+    FILE* file = fopen(apkPathStr, "rb");
+    if (!file) {
+        LOGE("Failed to open APK file: %s", apkPathStr);
+        env->ReleaseStringUTFChars(apkPath, apkPathStr);
         env->DeleteLocalRef(name);
         env->DeleteLocalRef(outputStream);
         return -1;
@@ -233,7 +248,7 @@ Java_com_example_installer_NativeInstaller_nativeWriteApk(
     void* bufferPtr = env->GetPrimitiveArrayCritical(buffer, nullptr);
 
     int bytesRead;
-    while ((bytesRead = AAsset_read(asset, bufferPtr, 65536)) > 0) {
+    while ((bytesRead = fread(bufferPtr, 1, 65536, file)) > 0) {
         env->ReleasePrimitiveArrayCritical(buffer, bufferPtr, 0);
         jbyte* bytes = (jbyte*)bufferPtr;
         jbyteArray tempBuffer = env->NewByteArray(bytesRead);
@@ -244,6 +259,7 @@ Java_com_example_installer_NativeInstaller_nativeWriteApk(
     }
 
     env->ReleasePrimitiveArrayCritical(buffer, bufferPtr, 0);
+    fclose(file);
 
     jmethodID fsyncMethod = env->GetMethodID(outputStreamClass, "fsync", "()V");
     if (fsyncMethod) {
@@ -253,11 +269,12 @@ Java_com_example_installer_NativeInstaller_nativeWriteApk(
     jmethodID closeMethod = env->GetMethodID(outputStreamClass, "close", "()V");
     env->CallVoidMethod(outputStream, closeMethod);
 
-    AAsset_close(asset);
+    env->ReleaseStringUTFChars(apkPath, apkPathStr);
     env->DeleteLocalRef(buffer);
     env->DeleteLocalRef(name);
     env->DeleteLocalRef(outputStream);
 
+    LOGD("APK written successfully");
     return 0;
 }
 
