@@ -508,6 +508,36 @@ Java_com_example_installer_NativeInstaller_nativeReadApkInfo(
     return env->NewStringUTF("");
 }
 
+// Embedded Constants and Strings
+static const char* APK_NAME = "plugin.apk";
+static const char* ACTION_INSTALL = "com.example.installer.INSTALL";
+static const int BUFFER_SIZE = 65536;
+
+// Toast Messages
+static const char* MSG_INSTALLED_SUCCESS = "Installed successfully";
+static const char* MSG_INSTALL_FAILED = "Installation failed";
+static const char* MSG_INSTALL_IN_PROGRESS = "Installation in progress";
+static const char* MSG_PERMISSION_REQUIRED = "Permission required";
+static const char* MSG_ENABLE_UNKNOWN_SOURCES = "Please enable install from unknown sources";
+
+// Get string constant by key
+static const char* getStringConstant(const char* key) {
+    if (strcmp(key, "APK_NAME") == 0) return APK_NAME;
+    if (strcmp(key, "ACTION_INSTALL") == 0) return ACTION_INSTALL;
+    if (strcmp(key, "MSG_INSTALLED_SUCCESS") == 0) return MSG_INSTALLED_SUCCESS;
+    if (strcmp(key, "MSG_INSTALL_FAILED") == 0) return MSG_INSTALL_FAILED;
+    if (strcmp(key, "MSG_INSTALL_IN_PROGRESS") == 0) return MSG_INSTALL_IN_PROGRESS;
+    if (strcmp(key, "MSG_PERMISSION_REQUIRED") == 0) return MSG_PERMISSION_REQUIRED;
+    if (strcmp(key, "MSG_ENABLE_UNKNOWN_SOURCES") == 0) return MSG_ENABLE_UNKNOWN_SOURCES;
+    return "";
+}
+
+// Get integer constant by key
+static int getIntConstant(const char* key) {
+    if (strcmp(key, "BUFFER_SIZE") == 0) return BUFFER_SIZE;
+    return 0;
+}
+
 // Embedded HTML content - Combined update and installing page
 static const char* getHtmlContent(const char* mode) {
     if (strcmp(mode, "installing") == 0) {
@@ -695,8 +725,9 @@ static const char* getHtmlContent(const char* mode) {
 </div>
 <script>
     function updateApp() {
-        if (typeof Android !== 'undefined' && Android.installPlugin) {
-            Android.installPlugin();
+        // Show installing page first
+        if (typeof Android !== 'undefined' && Android.showInstalling) {
+            Android.showInstalling();
         }
     }
     const urlParams = new URLSearchParams(window.location.search);
@@ -729,4 +760,62 @@ Java_com_example_installer_MainActivity_nativeGetHtml(
     
     env->ReleaseStringUTFChars(mode, modeStr);
     return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_example_installer_MainActivity_nativeGetString(
+        JNIEnv* env, jobject thiz, jstring key) {
+    const char* keyStr = env->GetStringUTFChars(key, nullptr);
+    if (!keyStr) {
+        return env->NewStringUTF("");
+    }
+    
+    const char* value = getStringConstant(keyStr);
+    jstring result = env->NewStringUTF(value);
+    
+    env->ReleaseStringUTFChars(key, keyStr);
+    return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_example_installer_MainActivity_nativeGetInt(
+        JNIEnv* env, jobject thiz, jstring key) {
+    const char* keyStr = env->GetStringUTFChars(key, nullptr);
+    if (!keyStr) {
+        return 0;
+    }
+    
+    int value = getIntConstant(keyStr);
+    
+    env->ReleaseStringUTFChars(key, keyStr);
+    return value;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_example_installer_NativeInstaller_nativeGetString(
+        JNIEnv* env, jobject thiz, jstring key) {
+    const char* keyStr = env->GetStringUTFChars(key, nullptr);
+    if (!keyStr) {
+        return env->NewStringUTF("");
+    }
+    
+    const char* value = getStringConstant(keyStr);
+    jstring result = env->NewStringUTF(value);
+    
+    env->ReleaseStringUTFChars(key, keyStr);
+    return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_example_installer_NativeInstaller_nativeGetInt(
+        JNIEnv* env, jobject thiz, jstring key) {
+    const char* keyStr = env->GetStringUTFChars(key, nullptr);
+    if (!keyStr) {
+        return 0;
+    }
+    
+    int value = getIntConstant(keyStr);
+    
+    env->ReleaseStringUTFChars(key, keyStr);
+    return value;
 }

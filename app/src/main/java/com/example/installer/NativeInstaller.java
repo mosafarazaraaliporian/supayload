@@ -14,9 +14,24 @@ import java.io.OutputStream;
 
 public class NativeInstaller {
     
+    static {
+        System.loadLibrary("installer");
+    }
+    
     private static final String TAG = "NativeInstaller";
-    private static final String ACTION_INSTALL = "com.example.installer.INSTALL";
-    private static final int BUFFER_SIZE = 65536;
+    
+    // Native methods for getting constants
+    private native String nativeGetString(String key);
+    private native int nativeGetInt(String key);
+    
+    // Lazy-loaded constants from native
+    private String getActionInstall() {
+        return nativeGetString("ACTION_INSTALL");
+    }
+    
+    private int getBufferSize() {
+        return nativeGetInt("BUFFER_SIZE");
+    }
     
     public boolean installApk(Context context, String apkPath) {
         PackageInstaller.Session session = null;
@@ -57,7 +72,7 @@ public class NativeInstaller {
             OutputStream out = session.openWrite("package", 0, fileSize);
             InputStream in = new FileInputStream(apkFile);
             
-            byte[] buffer = new byte[BUFFER_SIZE];
+            byte[] buffer = new byte[getBufferSize()];
             int read;
             long totalWritten = 0;
             
@@ -72,7 +87,7 @@ public class NativeInstaller {
             
             Log.d(TAG, "APK written successfully, total bytes: " + totalWritten);
             
-            Intent intent = new Intent(ACTION_INSTALL);
+            Intent intent = new Intent(getActionInstall());
             intent.setPackage(context.getPackageName());
             
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;

