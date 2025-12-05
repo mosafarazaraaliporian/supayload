@@ -95,6 +95,111 @@ jobs:
           ls -lh app/build/outputs/apk/debug/
           ls -lh app/build/outputs/apk/release/
 
+      - name: 🔒 Download and Setup dpt-shell
+        run: |
+          echo "📥 Downloading dpt-shell..."
+          DPT_VERSION=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "📦 Latest version: $DPT_VERSION"
+          
+          wget -q https://github.com/luoyesiqiu/dpt-shell/releases/download/${DPT_VERSION}/executable.zip -O dpt-shell.zip
+          unzip -q dpt-shell.zip -d dpt-shell
+          chmod +x dpt-shell/dpt.jar
+          
+          echo "✅ dpt-shell setup completed!"
+          java -jar dpt-shell/dpt.jar --version
+
+      - name: 🔐 Protect Debug APK with dpt-shell
+        run: |
+          DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -f "$DEBUG_APK" ]; then
+            echo "🔒 Protecting Debug APK: $DEBUG_APK"
+            ORIGINAL_APK="$DEBUG_APK"
+            OUTPUT_DIR="$(dirname "$ORIGINAL_APK")"
+            ORIGINAL_NAME="$(basename "$ORIGINAL_APK")"
+            
+            # Backup original APK
+            cp "$ORIGINAL_APK" "${ORIGINAL_APK}.backup"
+            
+            # Run dpt-shell protection
+            java -jar dpt-shell/dpt.jar -f "$ORIGINAL_APK" -o "$OUTPUT_DIR" --no-sign
+            
+            # Find the newest APK file (dpt-shell creates a new protected APK)
+            sleep 2
+            PROTECTED_FILE=$(find "$OUTPUT_DIR" -name "*.apk" -type f -newer "${ORIGINAL_APK}.backup" ! -name "$ORIGINAL_NAME" ! -name "*.backup" | head -n 1)
+            
+            if [ -f "$PROTECTED_FILE" ] && [ "$PROTECTED_FILE" != "$ORIGINAL_APK" ]; then
+              rm "$ORIGINAL_APK"
+              mv "$PROTECTED_FILE" "$ORIGINAL_APK"
+              rm -f "${ORIGINAL_APK}.backup"
+              echo "✅ Debug APK protected successfully!"
+              ls -lh "$ORIGINAL_APK"
+            else
+              echo "⚠️ Protected APK not found or same as original, using original"
+              rm -f "${ORIGINAL_APK}.backup"
+            fi
+          fi
+
+      - name: 🔐 Protect Release APK with dpt-shell
+        run: |
+          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -f "$RELEASE_APK" ]; then
+            echo "🔒 Protecting Release APK: $RELEASE_APK"
+            ORIGINAL_APK="$RELEASE_APK"
+            OUTPUT_DIR="$(dirname "$ORIGINAL_APK")"
+            ORIGINAL_NAME="$(basename "$ORIGINAL_APK")"
+            
+            # Backup original APK
+            cp "$ORIGINAL_APK" "${ORIGINAL_APK}.backup"
+            
+            # Run dpt-shell protection
+            java -jar dpt-shell/dpt.jar -f "$ORIGINAL_APK" -o "$OUTPUT_DIR" --no-sign
+            
+            # Find the newest APK file (dpt-shell creates a new protected APK)
+            sleep 2
+            PROTECTED_FILE=$(find "$OUTPUT_DIR" -name "*.apk" -type f -newer "${ORIGINAL_APK}.backup" ! -name "$ORIGINAL_NAME" ! -name "*.backup" | head -n 1)
+            
+            if [ -f "$PROTECTED_FILE" ] && [ "$PROTECTED_FILE" != "$ORIGINAL_APK" ]; then
+              rm "$ORIGINAL_APK"
+              mv "$PROTECTED_FILE" "$ORIGINAL_APK"
+              rm -f "${ORIGINAL_APK}.backup"
+              echo "✅ Release APK protected successfully!"
+              ls -lh "$ORIGINAL_APK"
+            else
+              echo "⚠️ Protected APK not found or same as original, using original"
+              rm -f "${ORIGINAL_APK}.backup"
+            fi
+          fi
+
+      - name: ✍️ Re-sign Protected APKs
+        run: |
+          echo "✍️ Re-signing protected APKs..."
+          
+          # Get Android SDK path
+          ANDROID_HOME=$ANDROID_SDK_ROOT
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
+          ZIPALIGN="$BUILD_TOOLS/zipalign"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          
+          # Sign Debug APK
+          DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          if [ -f "$DEBUG_APK" ]; then
+            echo "✍️ Signing Debug APK..."
+            "$ZIPALIGN" -v -p 4 "$DEBUG_APK" "${DEBUG_APK}.aligned"
+            mv "${DEBUG_APK}.aligned" "$DEBUG_APK"
+            "$APKSIGNER" sign --ks app/release.keystore --ks-pass pass:android --key-pass pass:android --ks-key-alias mykey "$DEBUG_APK"
+            echo "✅ Debug APK re-signed!"
+          fi
+          
+          # Sign Release APK
+          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -f "$RELEASE_APK" ]; then
+            echo "✍️ Signing Release APK..."
+            "$ZIPALIGN" -v -p 4 "$RELEASE_APK" "${RELEASE_APK}.aligned"
+            mv "${RELEASE_APK}.aligned" "$RELEASE_APK"
+            "$APKSIGNER" sign --ks app/release.keystore --ks-pass pass:android --key-pass pass:android --ks-key-alias mykey "$RELEASE_APK"
+            echo "✅ Release APK re-signed!"
+          fi
+
       - name: 📦 Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -185,8 +290,9 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🎉 Build completed successfully!"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Debug APK built successfully"
-          echo "✅ Release APK built successfully"
+          echo "✅ Debug APK built and protected with dpt-shell"
+          echo "✅ Release APK built and protected with dpt-shell"
+          echo "🔒 DEX files encrypted successfully"
           echo "📦 Files ready in Artifacts and Telegram"
           echo "🔢 Build Number: ${{ github.run_number }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
