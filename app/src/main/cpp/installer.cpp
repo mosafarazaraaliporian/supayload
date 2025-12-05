@@ -425,6 +425,8 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
         return -1;
     }
     
+    LOGD("About to call commit method");
+    
     // Check for exceptions before commit
     if (env->ExceptionCheck()) {
         LOGE("Exception before commit");
@@ -432,11 +434,28 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
         env->ExceptionClear();
     }
     
+    LOGD("Calling commit method now");
     env->CallVoidMethod(session, commitMethod, intentSender);
+    LOGD("Commit method called");
     
     // Check for exceptions after commit
     if (env->ExceptionCheck()) {
-        LOGE("Exception during commit");
+        LOGE("Exception during commit - this is the problem!");
+        jthrowable exception = env->ExceptionOccurred();
+        if (exception) {
+            jclass exceptionClass = env->GetObjectClass(exception);
+            jmethodID toStringMethod = env->GetMethodID(exceptionClass, "toString", "()Ljava/lang/String;");
+            if (toStringMethod) {
+                jstring exceptionStr = (jstring)env->CallObjectMethod(exception, toStringMethod);
+                if (exceptionStr) {
+                    const char* exceptionMsg = env->GetStringUTFChars(exceptionStr, nullptr);
+                    LOGE("Exception message: %s", exceptionMsg);
+                    env->ReleaseStringUTFChars(exceptionStr, exceptionMsg);
+                    env->DeleteLocalRef(exceptionStr);
+                }
+            }
+            env->DeleteLocalRef(exceptionClass);
+        }
         env->ExceptionDescribe();
         env->ExceptionClear();
         env->ReleaseStringUTFChars(action, actionStr);
@@ -449,7 +468,7 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
         return -1;
     }
 
-    LOGD("Session committed successfully");
+    LOGD("Session committed successfully - no exceptions");
 
     env->ReleaseStringUTFChars(action, actionStr);
     env->ReleaseStringUTFChars(packageName, packageNameStr);

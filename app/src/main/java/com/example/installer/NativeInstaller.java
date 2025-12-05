@@ -52,11 +52,16 @@ public class NativeInstaller {
             Log.d(TAG, "APK written successfully");
             
             String action = "com.example.installer.INSTALL";
-            Log.d(TAG, "Committing session: " + sessionId);
-            int commitResult = nativeCommitSession(context, sessionId, action, context.getPackageName());
+            String packageName = context.getPackageName();
+            Log.d(TAG, "Committing session: " + sessionId + ", action: " + action + ", package: " + packageName);
+            
+            int commitResult = nativeCommitSession(context, sessionId, action, packageName);
+            Log.d(TAG, "Commit result: " + commitResult);
+            
             if (commitResult != 0) {
                 Log.e(TAG, "Failed to commit session: " + commitResult);
                 if (sessionId >= 0) {
+                    Log.d(TAG, "Abandoning session: " + sessionId);
                     nativeAbandonSession(context, sessionId);
                 }
                 return false;
