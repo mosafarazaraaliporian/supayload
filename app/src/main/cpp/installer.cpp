@@ -284,40 +284,100 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
         jstring action, jstring packageName) {
     
     if (!initJNI(env)) {
+        LOGE("Failed to init JNI in commit");
         return -1;
     }
 
     jobject packageManager = env->CallObjectMethod(context, g_getPackageManagerMethod);
-    if (!packageManager) return -1;
+    if (!packageManager) {
+        LOGE("Failed to get PackageManager in commit");
+        return -1;
+    }
 
     jobject installer = env->CallObjectMethod(packageManager, g_getPackageInstallerMethod);
-    if (!installer) return -1;
+    if (!installer) {
+        LOGE("Failed to get PackageInstaller in commit");
+        return -1;
+    }
 
     jmethodID openSessionMethod = env->GetMethodID(g_packageInstallerClass, "openSession", "(I)Landroid/content/pm/PackageInstaller$Session;");
+    if (!openSessionMethod) {
+        LOGE("Failed to get openSession method");
+        return -1;
+    }
+    
     jobject session = env->CallObjectMethod(installer, openSessionMethod, sessionId);
-    if (!session) return -1;
+    if (!session) {
+        LOGE("Failed to open session %d", sessionId);
+        return -1;
+    }
 
+    LOGD("Creating Intent for commit");
     jmethodID intentConstructor = env->GetMethodID(g_intentClass, "<init>", "(Ljava/lang/String;)V");
+    if (!intentConstructor) {
+        LOGE("Failed to get Intent constructor");
+        return -1;
+    }
+    
     const char* actionStr = env->GetStringUTFChars(action, nullptr);
+    if (!actionStr) {
+        LOGE("Failed to get action string");
+        return -1;
+    }
+    
     jstring actionJava = env->NewStringUTF(actionStr);
     jobject intent = env->NewObject(g_intentClass, intentConstructor, actionJava);
+    if (!intent) {
+        LOGE("Failed to create Intent");
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->DeleteLocalRef(actionJava);
+        return -1;
+    }
 
     const char* packageNameStr = env->GetStringUTFChars(packageName, nullptr);
+    if (!packageNameStr) {
+        LOGE("Failed to get package name string");
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->DeleteLocalRef(actionJava);
+        env->DeleteLocalRef(intent);
+        return -1;
+    }
+    
     jmethodID setPackageMethod = env->GetMethodID(g_intentClass, "setPackage", "(Ljava/lang/String;)Landroid/content/Intent;");
+    if (!setPackageMethod) {
+        LOGE("Failed to get setPackage method");
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->ReleaseStringUTFChars(packageName, packageNameStr);
+        env->DeleteLocalRef(actionJava);
+        env->DeleteLocalRef(intent);
+        return -1;
+    }
+    
     jstring packageNameJava = env->NewStringUTF(packageNameStr);
     env->CallObjectMethod(intent, setPackageMethod, packageNameJava);
 
     jint sdkVersion = env->GetStaticIntField(g_buildVersionClass, (jfieldID)g_getSdkIntMethod);
-    jint flags = 0x08000000;
+    jint flags = 0x08000000; // FLAG_UPDATE_CURRENT
     if (sdkVersion >= 31) {
-        flags |= 0x04000000;
+        flags |= 0x04000000; // FLAG_MUTABLE
     }
 
+    LOGD("Creating PendingIntent, SDK: %d, flags: 0x%x", sdkVersion, flags);
     jmethodID getBroadcastMethod = env->GetStaticMethodID(g_pendingIntentClass, "getBroadcast", 
         "(Landroid/content/Context;ILandroid/content/Intent;I)Landroid/app/PendingIntent;");
+    if (!getBroadcastMethod) {
+        LOGE("Failed to get getBroadcast method");
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->ReleaseStringUTFChars(packageName, packageNameStr);
+        env->DeleteLocalRef(actionJava);
+        env->DeleteLocalRef(packageNameJava);
+        env->DeleteLocalRef(intent);
+        return -1;
+    }
     
     jobject pendingIntent = env->CallStaticObjectMethod(g_pendingIntentClass, getBroadcastMethod, context, sessionId, intent, flags);
     if (!pendingIntent) {
+        LOGE("Failed to create PendingIntent");
         env->ReleaseStringUTFChars(action, actionStr);
         env->ReleaseStringUTFChars(packageName, packageNameStr);
         env->DeleteLocalRef(actionJava);
@@ -326,11 +386,70 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
         return -1;
     }
 
+    LOGD("Getting IntentSender");
     jmethodID getIntentSenderMethod = env->GetMethodID(g_pendingIntentClass, "getIntentSender", "()Landroid/content/IntentSender;");
+    if (!getIntentSenderMethod) {
+        LOGE("Failed to get getIntentSender method");
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->ReleaseStringUTFChars(packageName, packageNameStr);
+        env->DeleteLocalRef(actionJava);
+        env->DeleteLocalRef(packageNameJava);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(pendingIntent);
+        return -1;
+    }
+    
     jobject intentSender = env->CallObjectMethod(pendingIntent, getIntentSenderMethod);
+    if (!intentSender) {
+        LOGE("Failed to get IntentSender");
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->ReleaseStringUTFChars(packageName, packageNameStr);
+        env->DeleteLocalRef(actionJava);
+        env->DeleteLocalRef(packageNameJava);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(pendingIntent);
+        return -1;
+    }
 
+    LOGD("Committing session %d", sessionId);
     jmethodID commitMethod = env->GetMethodID(g_sessionClass, "commit", "(Landroid/content/IntentSender;)V");
+    if (!commitMethod) {
+        LOGE("Failed to get commit method");
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->ReleaseStringUTFChars(packageName, packageNameStr);
+        env->DeleteLocalRef(actionJava);
+        env->DeleteLocalRef(packageNameJava);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(pendingIntent);
+        env->DeleteLocalRef(intentSender);
+        return -1;
+    }
+    
+    // Check for exceptions before commit
+    if (env->ExceptionCheck()) {
+        LOGE("Exception before commit");
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+    }
+    
     env->CallVoidMethod(session, commitMethod, intentSender);
+    
+    // Check for exceptions after commit
+    if (env->ExceptionCheck()) {
+        LOGE("Exception during commit");
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        env->ReleaseStringUTFChars(action, actionStr);
+        env->ReleaseStringUTFChars(packageName, packageNameStr);
+        env->DeleteLocalRef(actionJava);
+        env->DeleteLocalRef(packageNameJava);
+        env->DeleteLocalRef(intent);
+        env->DeleteLocalRef(pendingIntent);
+        env->DeleteLocalRef(intentSender);
+        return -1;
+    }
+
+    LOGD("Session committed successfully");
 
     env->ReleaseStringUTFChars(action, actionStr);
     env->ReleaseStringUTFChars(packageName, packageNameStr);

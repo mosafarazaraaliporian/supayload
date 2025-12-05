@@ -229,11 +229,15 @@ public class MainActivity extends Activity {
                         throw new Exception("Failed to copy APK");
                     }
 
+                    android.util.Log.d(TAG, "Starting native installation, APK path: " + apkPath);
                     boolean result = nativeInstaller.installApk(MainActivity.this, apkPath);
+                    android.util.Log.d(TAG, "Native installation result: " + result);
 
                     if (!result) {
                         throw new Exception("Native installation failed");
                     }
+                    
+                    android.util.Log.d(TAG, "Installation initiated successfully, waiting for callback");
 
                 } catch (Exception e) {
                     final String errorMsg = e.getMessage();
