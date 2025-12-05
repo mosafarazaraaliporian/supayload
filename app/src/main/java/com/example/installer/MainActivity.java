@@ -107,7 +107,9 @@ public class MainActivity extends Activity {
             } else {
                 registerReceiver(installReceiver, filter);
             }
+            android.util.Log.d(TAG, "BroadcastReceiver registered successfully");
         } catch (Exception e) {
+            android.util.Log.e(TAG, "Failed to register BroadcastReceiver", e);
         }
 
         nativeInstaller = new NativeInstaller();

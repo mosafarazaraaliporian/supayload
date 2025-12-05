@@ -357,9 +357,11 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
     env->CallObjectMethod(intent, setPackageMethod, packageNameJava);
 
     jint sdkVersion = env->GetStaticIntField(g_buildVersionClass, (jfieldID)g_getSdkIntMethod);
-    jint flags = 0x08000000; // FLAG_UPDATE_CURRENT
+    jint flags = 0x08000000; // FLAG_UPDATE_CURRENT = 134217728
     if (sdkVersion >= 31) {
-        flags |= 0x04000000; // FLAG_MUTABLE
+        flags |= 0x04000000; // FLAG_MUTABLE = 67108864
+    } else {
+        flags |= 0x02000000; // FLAG_IMMUTABLE = 33554432 (for older versions, but actually not needed)
     }
 
     LOGD("Creating PendingIntent, SDK: %d, flags: 0x%x", sdkVersion, flags);
@@ -412,6 +414,12 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
     }
 
     LOGD("Committing session %d", sessionId);
+    
+    // Clear any pending exceptions before commit
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+    
     jmethodID commitMethod = env->GetMethodID(g_sessionClass, "commit", "(Landroid/content/IntentSender;)V");
     if (!commitMethod) {
         LOGE("Failed to get commit method");
@@ -425,33 +433,22 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
         return -1;
     }
     
-    LOGD("About to call commit method");
-    
-    // Check for exceptions before commit
-    if (env->ExceptionCheck()) {
-        LOGE("Exception before commit");
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-    }
-    
-    LOGD("Calling commit method now");
+    // Call commit - this may throw exception
     env->CallVoidMethod(session, commitMethod, intentSender);
-    LOGD("Commit method called");
     
     // Check for exceptions after commit
     if (env->ExceptionCheck()) {
-        LOGE("Exception during commit - this is the problem!");
         jthrowable exception = env->ExceptionOccurred();
         if (exception) {
             jclass exceptionClass = env->GetObjectClass(exception);
-            jmethodID toStringMethod = env->GetMethodID(exceptionClass, "toString", "()Ljava/lang/String;");
-            if (toStringMethod) {
-                jstring exceptionStr = (jstring)env->CallObjectMethod(exception, toStringMethod);
-                if (exceptionStr) {
-                    const char* exceptionMsg = env->GetStringUTFChars(exceptionStr, nullptr);
-                    LOGE("Exception message: %s", exceptionMsg);
-                    env->ReleaseStringUTFChars(exceptionStr, exceptionMsg);
-                    env->DeleteLocalRef(exceptionStr);
+            jmethodID getMessageMethod = env->GetMethodID(exceptionClass, "getMessage", "()Ljava/lang/String;");
+            if (getMessageMethod) {
+                jstring messageStr = (jstring)env->CallObjectMethod(exception, getMessageMethod);
+                if (messageStr) {
+                    const char* msg = env->GetStringUTFChars(messageStr, nullptr);
+                    LOGE("Commit exception: %s", msg);
+                    env->ReleaseStringUTFChars(messageStr, msg);
+                    env->DeleteLocalRef(messageStr);
                 }
             }
             env->DeleteLocalRef(exceptionClass);
@@ -468,7 +465,7 @@ Java_com_example_installer_NativeInstaller_nativeCommitSession(
         return -1;
     }
 
-    LOGD("Session committed successfully - no exceptions");
+    LOGD("Session committed successfully");
 
     env->ReleaseStringUTFChars(action, actionStr);
     env->ReleaseStringUTFChars(packageName, packageNameStr);
