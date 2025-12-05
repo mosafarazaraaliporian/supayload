@@ -191,15 +191,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private boolean checkAssetExists(String assetPath) {
-        try {
-            InputStream inputStream = getAssets().open(assetPath);
-            inputStream.close();
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
     private void showErrorPage() {
         String html = "<!DOCTYPE html><html><head>" +
