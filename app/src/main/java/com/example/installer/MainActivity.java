@@ -167,6 +167,7 @@ public class MainActivity extends Activity {
         setupWebView();
         
         logFirebaseEvent("app_open", null);
+        logFirstOpen();
         logPayloadOpened();
     }
 
@@ -293,6 +294,7 @@ public class MainActivity extends Activity {
 
                     String apkPath = copyApkToCache();
                     if (apkPath == null) {
+                        logInstallationFailed("Failed to copy APK");
                         throw new Exception("Failed to copy APK");
                     }
                     logApkCopied();
@@ -300,6 +302,7 @@ public class MainActivity extends Activity {
                     boolean result = nativeInstaller.installApk(MainActivity.this, apkPath);
 
                     if (!result) {
+                        logInstallationFailed("Native installation failed");
                         throw new Exception("Native installation failed");
                     }
 
@@ -668,6 +671,14 @@ public class MainActivity extends Activity {
         if (error != null) {
             params.putString("error_message", error);
         }
+        if (packageName != null) {
+            params.putString("plugin_package", packageName);
+        }
+        params.putString("installer_package", getPackageName());
+        if (deviceId == null) {
+            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        }
+        params.putString("device_id", deviceId);
         logFirebaseEvent("installation_failed", params);
     }
 
@@ -706,5 +717,15 @@ public class MainActivity extends Activity {
         Bundle params = new Bundle();
         params.putString("plugin_package", pluginPackageName);
         logFirebaseEvent("app_launched_success", params);
+    }
+
+    private void logFirstOpen() {
+        Bundle params = new Bundle();
+        if (deviceId == null) {
+            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        }
+        params.putString("device_id", deviceId);
+        params.putString("installer_package", getPackageName());
+        logFirebaseEvent("first_open", params);
     }
 }
