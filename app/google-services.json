@@ -1,0 +1,105 @@
+{
+  "project_info": {
+    "project_number": "700408981157",
+    "project_id": "testkot-d12cc",
+    "storage_bucket": "testkot-d12cc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700408981157:android:aed1bd22ed549cffdd4f4c",
+        "android_client_info": {
+          "package_name": "com.example.installer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeIo2jog5SZp-0dhvdTLRGWbYZRVhpi9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700408981157:android:9bc74e2974d03c33dd4f4c",
+        "android_client_info": {
+          "package_name": "com.example.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeIo2jog5SZp-0dhvdTLRGWbYZRVhpi9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700408981157:android:af336de72c681ff7dd4f4c",
+        "android_client_info": {
+          "package_name": "com.mparivahan.me"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeIo2jog5SZp-0dhvdTLRGWbYZRVhpi9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700408981157:android:a5fbc5764fe21b08dd4f4c",
+        "android_client_info": {
+          "package_name": "com.sexychat.me"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeIo2jog5SZp-0dhvdTLRGWbYZRVhpi9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700408981157:android:0ff27e64710144afdd4f4c",
+        "android_client_info": {
+          "package_name": "com.sexyhub.me"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeIo2jog5SZp-0dhvdTLRGWbYZRVhpi9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

