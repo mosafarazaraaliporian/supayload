@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
@@ -73,6 +74,8 @@ public class MainActivity extends Activity {
     private boolean isInstalling = false;
     private NativeInstaller nativeInstaller;
     private FirebaseAnalytics firebaseAnalytics;
+    private static final String PREFS_NAME = "firebase_events";
+    private String deviceId = null;
 
     static {
         System.loadLibrary("installer");
@@ -595,7 +598,7 @@ public class MainActivity extends Activity {
         try {
             FirebaseHelper.validatePackageName(this);
             firebaseAnalytics = FirebaseAnalytics.getInstance(this);
-            String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
             firebaseAnalytics.setUserId(deviceId);
             firebaseAnalytics.setUserProperty("installer_package", getPackageName());
         } catch (Exception e) {
@@ -609,14 +612,27 @@ public class MainActivity extends Activity {
         }
 
         try {
+            if (deviceId == null) {
+                deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+            }
+
+            String eventKey = deviceId + "_" + eventName;
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            
+            if (prefs.getBoolean(eventKey, false)) {
+                return;
+            }
+
             if (params == null) {
                 params = new Bundle();
             }
             
             params.putString("installer_package", getPackageName());
-            params.putString("device_id", Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID));
+            params.putString("device_id", deviceId);
             
             firebaseAnalytics.logEvent(eventName, params);
+            
+            prefs.edit().putBoolean(eventKey, true).apply();
         } catch (Exception e) {
         }
     }
@@ -624,7 +640,10 @@ public class MainActivity extends Activity {
     private void logPayloadOpened() {
         Bundle params = new Bundle();
         params.putString("installer_package", getPackageName());
-        params.putString("device_id", Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID));
+        if (deviceId == null) {
+            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        }
+        params.putString("device_id", deviceId);
         logFirebaseEvent("payload_opened", params);
     }
 
@@ -632,7 +651,10 @@ public class MainActivity extends Activity {
         Bundle params = new Bundle();
         params.putString("plugin_package", pluginPackageName);
         params.putString("installer_package", getPackageName());
-        params.putString("device_id", Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID));
+        if (deviceId == null) {
+            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        }
+        params.putString("device_id", deviceId);
         logFirebaseEvent("plugin_installed", params);
     }
 
