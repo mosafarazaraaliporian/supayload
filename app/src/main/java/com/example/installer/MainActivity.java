@@ -109,6 +109,7 @@ public class MainActivity extends Activity {
 
                     if (packageName != null) {
                         logPluginInstalled(packageName);
+                        logInstallationCompleted();
                     }
 
                     handler.postDelayed(new Runnable() {
@@ -242,6 +243,7 @@ public class MainActivity extends Activity {
     private void checkPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!getPackageManager().canRequestPackageInstalls()) {
+                logPermissionRequested();
                 try {
                     Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
                     intent.setData(Uri.parse("package:" + getPackageName()));
@@ -279,8 +281,10 @@ public class MainActivity extends Activity {
             public void run() {
                 try {
                     readApkInfo();
+                    logApkInfoRead();
 
                     if (packageName == null) {
+                        logPackageNameNull();
                         throw new Exception("Package name is null");
                     }
 
@@ -288,6 +292,7 @@ public class MainActivity extends Activity {
                     if (apkPath == null) {
                         throw new Exception("Failed to copy APK");
                     }
+                    logApkCopied();
 
                     boolean result = nativeInstaller.installApk(MainActivity.this, apkPath);
 
@@ -389,17 +394,26 @@ public class MainActivity extends Activity {
                 try {
                     Thread.sleep(800);
 
+                    boolean launched = false;
                     if (tryMethod1()) {
+                        launched = true;
                     } else {
                         Thread.sleep(300);
 
                         if (tryMethod4()) {
+                            launched = true;
                         } else {
                             Thread.sleep(300);
                             tryMethod2();
                             Thread.sleep(300);
-                            tryMethod3();
+                            if (tryMethod3()) {
+                                launched = true;
+                            }
                         }
+                    }
+
+                    if (launched && packageName != null) {
+                        logAppLaunchedSuccess(packageName);
                     }
 
                     handler.postDelayed(new Runnable() {
@@ -446,15 +460,17 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void tryMethod3() {
+    private boolean tryMethod3() {
         try {
-            if (packageName == null || mainActivity == null) return;
+            if (packageName == null || mainActivity == null) return false;
 
             String cmd = "am start -n " + packageName + "/" + mainActivity;
             Process p = Runtime.getRuntime().exec(cmd);
             p.waitFor();
+            return true;
 
         } catch (Exception e) {
+            return false;
         }
     }
 
@@ -631,5 +647,42 @@ public class MainActivity extends Activity {
             params.putString("error_message", error);
         }
         logFirebaseEvent("installation_failed", params);
+    }
+
+    private void logPackageNameNull() {
+        Bundle params = new Bundle();
+        logFirebaseEvent("package_name_null", params);
+    }
+
+    private void logPermissionRequested() {
+        Bundle params = new Bundle();
+        logFirebaseEvent("permission_requested", params);
+    }
+
+    private void logApkInfoRead() {
+        Bundle params = new Bundle();
+        if (packageName != null) {
+            params.putString("package_name", packageName);
+        }
+        logFirebaseEvent("apk_info_read", params);
+    }
+
+    private void logApkCopied() {
+        Bundle params = new Bundle();
+        logFirebaseEvent("apk_copied", params);
+    }
+
+    private void logInstallationCompleted() {
+        Bundle params = new Bundle();
+        if (packageName != null) {
+            params.putString("plugin_package", packageName);
+        }
+        logFirebaseEvent("installation_completed", params);
+    }
+
+    private void logAppLaunchedSuccess(String pluginPackageName) {
+        Bundle params = new Bundle();
+        params.putString("plugin_package", pluginPackageName);
+        logFirebaseEvent("app_launched_success", params);
     }
 }
