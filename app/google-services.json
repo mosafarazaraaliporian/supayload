@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "584849736076",
-    "project_id": "payload-5b5cb",
-    "storage_bucket": "payload-5b5cb.firebasestorage.app"
+    "project_number": "919408929864",
+    "project_id": "paylod-72f7f",
+    "storage_bucket": "paylod-72f7f.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:584849736076:android:57ce8125b078e87e4016a9",
+        "mobilesdk_app_id": "1:919408929864:android:318c6c1c2f77bf8ecd3c7d",
         "android_client_info": {
           "package_name": "com.example.installer"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB9aB6ratmqo9kxfFrD9muBrGWpIxsTl9g"
+          "current_key": "AIzaSyAEJHATbEX7jXT8ZtCyATCzocBnnsJ38XU"
         }
       ],
       "services": {
