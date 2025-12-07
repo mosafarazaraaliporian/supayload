@@ -168,18 +168,12 @@ public class MainActivity extends Activity {
         nativeInstaller = new NativeInstaller();
         loadConfig();
         loadSavedPackageInfo();
-        setupWebView();
         
         logFirebaseEvent("app_open", null);
         logFirstOpen();
         logPayloadOpened();
         
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                checkAndOpenInstalledApp();
-            }
-        }, 500);
+        checkAndOpenInstalledAppImmediately();
     }
 
     private void setupWebView() {
@@ -435,6 +429,34 @@ public class MainActivity extends Activity {
         }
     }
     
+    private void checkAndOpenInstalledAppImmediately() {
+        if (packageName != null && isPackageInstalled(packageName)) {
+            forceOpenApp();
+            return;
+        }
+        
+        if (packageName == null) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    readApkInfo();
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (packageName != null && isPackageInstalled(packageName)) {
+                                forceOpenApp();
+                            } else {
+                                setupWebView();
+                            }
+                        }
+                    });
+                }
+            }).start();
+        } else {
+            setupWebView();
+        }
+    }
+    
     private void checkAndOpenInstalledApp() {
         if (packageName == null) {
             readApkInfoInBackground();
@@ -456,14 +478,18 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 readApkInfo();
-                if (packageName != null && isPackageInstalled(packageName)) {
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (packageName != null && isPackageInstalled(packageName)) {
                             forceOpenApp();
+                        } else {
+                            if (webView == null) {
+                                setupWebView();
+                            }
                         }
-                    });
-                }
+                    }
+                });
             }
         }).start();
     }
@@ -473,20 +499,17 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    Thread.sleep(300);
-
                     boolean launched = false;
                     if (tryMethod1()) {
                         launched = true;
                     } else {
-                        Thread.sleep(200);
-
+                        Thread.sleep(100);
                         if (tryMethod4()) {
                             launched = true;
                         } else {
-                            Thread.sleep(200);
+                            Thread.sleep(100);
                             tryMethod2();
-                            Thread.sleep(200);
+                            Thread.sleep(100);
                             if (tryMethod3()) {
                                 launched = true;
                             }
@@ -496,7 +519,12 @@ public class MainActivity extends Activity {
                     if (launched && packageName != null) {
                         logAppLaunchedSuccess(packageName);
                         
-                        handler.postDelayed(new Runnable() {
+                        try {
+                            Thread.sleep(200);
+                        } catch (InterruptedException e) {
+                        }
+                        
+                        handler.post(new Runnable() {
                             @Override
                             public void run() {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -505,7 +533,7 @@ public class MainActivity extends Activity {
                                     finish();
                                 }
                             }
-                        }, 500);
+                        });
                     }
 
                 } catch (Exception e) {
