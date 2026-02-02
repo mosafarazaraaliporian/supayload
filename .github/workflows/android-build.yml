@@ -148,9 +148,10 @@ jobs:
           BODY=$(echo "$RESPONSE" | sed '$d')
           
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "❌ Telegram API Error (HTTP $HTTP_CODE):"
+            echo "⚠️ Telegram API Error (HTTP $HTTP_CODE):"
             echo "$BODY"
-            exit 1
+            echo "💡 Tip: Make sure bot is started or use Chat ID instead of username"
+            exit 0
           else
             echo "✅ APK sent successfully to Telegram!"
           fi
@@ -194,9 +195,10 @@ jobs:
           BODY=$(echo "$RESPONSE" | sed '$d')
           
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "❌ Telegram API Error (HTTP $HTTP_CODE):"
+            echo "⚠️ Telegram API Error (HTTP $HTTP_CODE):"
             echo "$BODY"
-            exit 1
+            echo "💡 Tip: Make sure bot is started or use Chat ID instead of username"
+            exit 0
           else
             echo "✅ APK sent successfully to Telegram!"
           fi
