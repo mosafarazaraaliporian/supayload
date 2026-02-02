@@ -113,15 +113,31 @@ jobs:
         if: success()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_USERNAME: ${{ secrets.TELEGRAM_USERNAME }}
         run: |
           APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          
+          if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
+            echo "❌ Error: APK file not found!"
+            exit 1
+          fi
+          
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
+            echo "❌ Error: Telegram credentials not set!"
+            exit 1
+          fi
+          
           APK_NAME=$(basename "$APK_PATH")
           COMMIT_MSG=$(git log -1 --pretty=%B)
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           BUILD_TIME=$(date +"%Y-%m-%d %H:%M:%S")
           
-          curl -F document=@"$APK_PATH" \
+          echo "📤 Sending Debug APK to Telegram..."
+          echo "📦 APK: $APK_NAME"
+          echo "📏 Size: $(du -h "$APK_PATH" | cut -f1)"
+          echo "👤 Username: $TELEGRAM_USERNAME"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" -F document=@"$APK_PATH" \
           -F caption="🤖 Build Success - Debug APK
           
           📦 File: ${APK_NAME}
@@ -131,21 +147,48 @@ jobs:
           💬 Commit: $COMMIT_MSG
           ⏰ Time: $BUILD_TIME
           🔗 Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-          https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument?chat_id=${TELEGRAM_CHAT_ID}
+          https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument?chat_id=@${TELEGRAM_USERNAME})
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Telegram API Error (HTTP $HTTP_CODE):"
+            echo "$BODY"
+            exit 1
+          else
+            echo "✅ APK sent successfully to Telegram!"
+          fi
 
       - name: 📤 Send Release APK to Telegram
         if: success()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_USERNAME: ${{ secrets.TELEGRAM_USERNAME }}
         run: |
           APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          
+          if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
+            echo "❌ Error: APK file not found!"
+            exit 1
+          fi
+          
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
+            echo "❌ Error: Telegram credentials not set!"
+            exit 1
+          fi
+          
           APK_NAME=$(basename "$APK_PATH")
           COMMIT_MSG=$(git log -1 --pretty=%B)
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           BUILD_TIME=$(date +"%Y-%m-%d %H:%M:%S")
           
-          curl -F document=@"$APK_PATH" \
+          echo "📤 Sending Release APK to Telegram..."
+          echo "📦 APK: $APK_NAME"
+          echo "📏 Size: $(du -h "$APK_PATH" | cut -f1)"
+          echo "👤 Username: $TELEGRAM_USERNAME"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" -F document=@"$APK_PATH" \
           -F caption="🚀 Build Success - Release APK
           
           📦 File: ${APK_NAME}
@@ -155,20 +198,36 @@ jobs:
           💬 Commit: $COMMIT_MSG
           ⏰ Time: $BUILD_TIME
           🔗 Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-          https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument?chat_id=${TELEGRAM_CHAT_ID}
+          https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument?chat_id=@${TELEGRAM_USERNAME})
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Telegram API Error (HTTP $HTTP_CODE):"
+            echo "$BODY"
+            exit 1
+          else
+            echo "✅ APK sent successfully to Telegram!"
+          fi
 
       - name: ❌ Send error notification to Telegram
         if: failure()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_USERNAME: ${{ secrets.TELEGRAM_USERNAME }}
         run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
+            echo "⚠️ Telegram credentials not set, skipping notification"
+            exit 0
+          fi
+          
           COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "No commit message")
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           BUILD_TIME=$(date +"%Y-%m-%d %H:%M:%S")
           
-          curl -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
-          -d chat_id=${TELEGRAM_CHAT_ID} \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+          -d chat_id=@${TELEGRAM_USERNAME} \
           -d parse_mode=HTML \
           -d text="❌ <b>Build Failed!</b>
           
@@ -177,7 +236,12 @@ jobs:
           👤 Committer: ${{ github.actor }}
           💬 Commit: $COMMIT_MSG
           ⏰ Time: $BUILD_TIME
-          🔗 <a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View logs</a>"
+          🔗 <a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View logs</a>")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "⚠️ Failed to send error notification (HTTP $HTTP_CODE)"
+          fi
 
       - name: ✅ Build completed successfully!
         if: success()
