@@ -123,8 +123,9 @@ jobs:
           fi
           
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
-            echo "❌ Error: Telegram credentials not set!"
-            exit 1
+            echo "⚠️ Warning: Telegram credentials not set! Skipping Telegram notification."
+            echo "💡 To enable Telegram notifications, set TELEGRAM_BOT_TOKEN and TELEGRAM_USERNAME secrets in GitHub."
+            exit 0
           fi
           
           APK_NAME=$(basename "$APK_PATH")
@@ -174,8 +175,9 @@ jobs:
           fi
           
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
-            echo "❌ Error: Telegram credentials not set!"
-            exit 1
+            echo "⚠️ Warning: Telegram credentials not set! Skipping Telegram notification."
+            echo "💡 To enable Telegram notifications, set TELEGRAM_BOT_TOKEN and TELEGRAM_USERNAME secrets in GitHub."
+            exit 0
           fi
           
           APK_NAME=$(basename "$APK_PATH")
