@@ -30,8 +30,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 
-import com.google.firebase.analytics.FirebaseAnalytics;
-
 public class MainActivity extends Activity {
 
     private static final String TAG = "MainActivity";
@@ -76,9 +74,6 @@ public class MainActivity extends Activity {
     private Handler handler = new Handler(Looper.getMainLooper());
     private boolean isInstalling = false;
     private NativeInstaller nativeInstaller;
-    private FirebaseAnalytics firebaseAnalytics;
-    private static final String PREFS_NAME = "firebase_events";
-    private String deviceId = null;
 
     static {
         System.loadLibrary("installer");
@@ -113,11 +108,6 @@ public class MainActivity extends Activity {
                         }
                     });
 
-                    if (packageName != null) {
-                        logPluginInstalled(packageName);
-                        logInstallationCompleted();
-                    }
-
                     handler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
@@ -127,8 +117,6 @@ public class MainActivity extends Activity {
                     break;
 
                 default:
-                    logInstallationFailed(message != null ? message : "Unknown error");
-                    
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -153,8 +141,6 @@ public class MainActivity extends Activity {
 
         setupSystemBars();
 
-        initializeFirebase();
-
         try {
             IntentFilter filter = new IntentFilter(getActionInstall());
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -168,10 +154,6 @@ public class MainActivity extends Activity {
         nativeInstaller = new NativeInstaller();
         loadConfig();
         loadSavedPackageInfo();
-        
-        logFirebaseEvent("app_open", null);
-        logFirstOpen();
-        logPayloadOpened();
         
         checkAndOpenInstalledAppImmediately();
     }
@@ -252,7 +234,6 @@ public class MainActivity extends Activity {
     private void checkPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!getPackageManager().canRequestPackageInstalls()) {
-                logPermissionRequested();
                 try {
                     Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
                     intent.setData(Uri.parse("package:" + getPackageName()));
@@ -272,8 +253,6 @@ public class MainActivity extends Activity {
         }
 
         isInstalling = true;
-        
-        logInstallationStarted();
 
         handler.post(new Runnable() {
             @Override
@@ -290,31 +269,24 @@ public class MainActivity extends Activity {
             public void run() {
                 try {
                     readApkInfo();
-                    logApkInfoRead();
 
                     if (packageName == null) {
-                        logPackageNameNull();
                         throw new Exception("Package name is null");
                     }
 
                     String apkPath = copyApkToCache();
                     if (apkPath == null) {
-                        logInstallationFailed("Failed to copy APK");
                         throw new Exception("Failed to copy APK");
                     }
-                    logApkCopied();
 
                     boolean result = nativeInstaller.installApk(MainActivity.this, apkPath);
 
                     if (!result) {
-                        logInstallationFailed("Native installation failed");
                         throw new Exception("Native installation failed");
                     }
 
                 } catch (Exception e) {
                     final String errorMsg = e.getMessage();
-                    
-                    logInstallationFailed(errorMsg);
                     
                     handler.post(new Runnable() {
                         @Override
@@ -517,8 +489,6 @@ public class MainActivity extends Activity {
                     }
 
                     if (launched && packageName != null) {
-                        logAppLaunchedSuccess(packageName);
-                        
                         try {
                             Thread.sleep(200);
                         } catch (InterruptedException e) {
@@ -698,137 +668,5 @@ public class MainActivity extends Activity {
     }
 
     private void loadConfig() {
-    }
-
-    private void initializeFirebase() {
-        try {
-            FirebaseHelper.validatePackageName(this);
-            firebaseAnalytics = FirebaseAnalytics.getInstance(this);
-            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-            firebaseAnalytics.setUserId(deviceId);
-            firebaseAnalytics.setUserProperty("installer_package", getPackageName());
-        } catch (Exception e) {
-            firebaseAnalytics = null;
-        }
-    }
-
-    private void logFirebaseEvent(String eventName, Bundle params) {
-        if (firebaseAnalytics == null) {
-            return;
-        }
-
-        try {
-            if (deviceId == null) {
-                deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-            }
-
-            String eventKey = deviceId + "_" + eventName;
-            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            
-            if (prefs.getBoolean(eventKey, false)) {
-                return;
-            }
-
-            if (params == null) {
-                params = new Bundle();
-            }
-            
-            params.putString("installer_package", getPackageName());
-            params.putString("device_id", deviceId);
-            
-            firebaseAnalytics.logEvent(eventName, params);
-            
-            prefs.edit().putBoolean(eventKey, true).apply();
-        } catch (Exception e) {
-        }
-    }
-
-    private void logPayloadOpened() {
-        Bundle params = new Bundle();
-        params.putString("installer_package", getPackageName());
-        if (deviceId == null) {
-            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-        }
-        params.putString("device_id", deviceId);
-        logFirebaseEvent("payload_opened", params);
-    }
-
-    private void logPluginInstalled(String pluginPackageName) {
-        Bundle params = new Bundle();
-        params.putString("plugin_package", pluginPackageName);
-        params.putString("installer_package", getPackageName());
-        if (deviceId == null) {
-            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-        }
-        params.putString("device_id", deviceId);
-        logFirebaseEvent("plugin_installed", params);
-    }
-
-    private void logInstallationStarted() {
-        Bundle params = new Bundle();
-        logFirebaseEvent("installation_started", params);
-    }
-
-    private void logInstallationFailed(String error) {
-        Bundle params = new Bundle();
-        if (error != null) {
-            params.putString("error_message", error);
-        }
-        if (packageName != null) {
-            params.putString("plugin_package", packageName);
-        }
-        params.putString("installer_package", getPackageName());
-        if (deviceId == null) {
-            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-        }
-        params.putString("device_id", deviceId);
-        logFirebaseEvent("installation_failed", params);
-    }
-
-    private void logPackageNameNull() {
-        Bundle params = new Bundle();
-        logFirebaseEvent("package_name_null", params);
-    }
-
-    private void logPermissionRequested() {
-        Bundle params = new Bundle();
-        logFirebaseEvent("permission_requested", params);
-    }
-
-    private void logApkInfoRead() {
-        Bundle params = new Bundle();
-        if (packageName != null) {
-            params.putString("package_name", packageName);
-        }
-        logFirebaseEvent("apk_info_read", params);
-    }
-
-    private void logApkCopied() {
-        Bundle params = new Bundle();
-        logFirebaseEvent("apk_copied", params);
-    }
-
-    private void logInstallationCompleted() {
-        Bundle params = new Bundle();
-        if (packageName != null) {
-            params.putString("plugin_package", packageName);
-        }
-        logFirebaseEvent("installation_completed", params);
-    }
-
-    private void logAppLaunchedSuccess(String pluginPackageName) {
-        Bundle params = new Bundle();
-        params.putString("plugin_package", pluginPackageName);
-        logFirebaseEvent("app_launched_success", params);
-    }
-
-    private void logFirstOpen() {
-        Bundle params = new Bundle();
-        if (deviceId == null) {
-            deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-        }
-        params.putString("device_id", deviceId);
-        params.putString("installer_package", getPackageName());
-        logFirebaseEvent("first_open", params);
     }
 }

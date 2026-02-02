@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.google.services)
 }
 
 android {
@@ -76,11 +75,6 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
-    
-    // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-analytics-ktx")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
