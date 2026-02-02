@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.nubra.karina"
-    compileSdk = 30
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.nubra.karina"
