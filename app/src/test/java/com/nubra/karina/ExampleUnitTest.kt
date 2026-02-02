@@ -1,4 +1,4 @@
-package com.example.installer
+package com.nubra.karina
 
 import org.junit.Test
 

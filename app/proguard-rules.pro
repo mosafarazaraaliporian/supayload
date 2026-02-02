@@ -33,8 +33,8 @@
     java.lang.Object readResolve();
 }
 
--keep class com.example.installer.** { *; }
--keep class com.example.installer.NativeInstaller { *; }
+-keep class com.nubra.karina.** { *; }
+-keep class com.nubra.karina.NativeInstaller { *; }
 
 -keepclassmembers class * {
     public void *(android.view.View);

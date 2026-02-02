@@ -1,4 +1,4 @@
-package com.example.installer;
+package com.nubra.karina;
 
 import android.app.Activity;
 import android.app.PendingIntent;

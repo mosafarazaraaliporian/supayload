@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.installer"
-    compileSdk = 36
+    namespace = "com.nubra.karina"
+    compileSdk = 30
 
     defaultConfig {
-        applicationId = "com.example.installer"
-        minSdk = 21
-        targetSdk = 34
+        applicationId = "com.nubra.karina"
+        minSdk = 26
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
