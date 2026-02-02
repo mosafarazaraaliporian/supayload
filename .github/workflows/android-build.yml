@@ -111,9 +111,6 @@ jobs:
 
       - name: 📤 Send Debug APK to Telegram
         if: success()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_USERNAME: ${{ secrets.TELEGRAM_USERNAME }}
         run: |
           APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           
@@ -122,11 +119,8 @@ jobs:
             exit 1
           fi
           
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
-            echo "⚠️ Warning: Telegram credentials not set! Skipping Telegram notification."
-            echo "💡 To enable Telegram notifications, set TELEGRAM_BOT_TOKEN and TELEGRAM_USERNAME secrets in GitHub."
-            exit 0
-          fi
+          TELEGRAM_BOT_TOKEN="8312138474:AAHSLslHtfLEwRM-oKae-YOuxpMEKKJo5Hs"
+          TELEGRAM_USERNAME="arshiassss"
           
           APK_NAME=$(basename "$APK_PATH")
           COMMIT_MSG=$(git log -1 --pretty=%B)
@@ -163,9 +157,6 @@ jobs:
 
       - name: 📤 Send Release APK to Telegram
         if: success()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_USERNAME: ${{ secrets.TELEGRAM_USERNAME }}
         run: |
           APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           
@@ -174,11 +165,8 @@ jobs:
             exit 1
           fi
           
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
-            echo "⚠️ Warning: Telegram credentials not set! Skipping Telegram notification."
-            echo "💡 To enable Telegram notifications, set TELEGRAM_BOT_TOKEN and TELEGRAM_USERNAME secrets in GitHub."
-            exit 0
-          fi
+          TELEGRAM_BOT_TOKEN="8312138474:AAHSLslHtfLEwRM-oKae-YOuxpMEKKJo5Hs"
+          TELEGRAM_USERNAME="arshiassss"
           
           APK_NAME=$(basename "$APK_PATH")
           COMMIT_MSG=$(git log -1 --pretty=%B)
@@ -215,14 +203,9 @@ jobs:
 
       - name: ❌ Send error notification to Telegram
         if: failure()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_USERNAME: ${{ secrets.TELEGRAM_USERNAME }}
         run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_USERNAME" ]; then
-            echo "⚠️ Telegram credentials not set, skipping notification"
-            exit 0
-          fi
+          TELEGRAM_BOT_TOKEN="8312138474:AAHSLslHtfLEwRM-oKae-YOuxpMEKKJo5Hs"
+          TELEGRAM_USERNAME="arshiassss"
           
           COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "No commit message")
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
